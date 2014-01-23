@@ -6,7 +6,7 @@ var isEqual = require('underscore').isEqual;
 var	actors=null,
 	active_things=null;
 
-//*** Warning! the init_callback function will be called at the 
+//### Warning! the init_callback function will be called at the 
 //    same time as the update function, this may result in
 var init = function(init_callback, updates_callback) {
 	var self = this;
@@ -150,9 +150,10 @@ var manage = function(requestID, device_path, action, parameter, callback) {
 module.exports.manage = manage;
 
 var toggle = function(requestID, deviceName, parameter, callback) {
+    var self = this;
 	var deviceID;
 
-	this.perform(requestID+1, deviceID, 'on', parameter, function() { self.perform(requestID, deviceID, 'off', parameter, callback)  });
+	self.perform(requestID+1, deviceID, 'on', parameter, function() { self.perform(requestID, deviceID, 'off', parameter, callback)  });
 }
 module.exports.toggle = toggle;
 
