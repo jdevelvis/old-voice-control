@@ -1,6 +1,7 @@
 var _ = require('underscore'),
     util  = require('util'),
-    spawn = require('child_process').spawn;
+    spawn = require('child_process').spawn,
+    sphinx;
 
 //Launches sphinx, wires up listeners, and waits on the python script to
 //respond with recognized speech
@@ -17,7 +18,6 @@ var launch = function(launch_callback, command_callback, err_callback) {
     	var matched = data.match(recognized_match) 
 	    if (matched && matched[1]) {
             command_callback(matched[1].toString());
-		    //console.log(matched[1]);
     	}
     });
 
@@ -30,4 +30,8 @@ var launch = function(launch_callback, command_callback, err_callback) {
     });
 }
 module.exports.launch = launch;
-//setTimeout(function() { sphinx.kill(); },30000);
+
+var dispose = function() {
+    sphinx.kill();
+}
+module.exports.dispose = dispose;
