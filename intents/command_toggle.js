@@ -2,86 +2,136 @@
 
 var util    = require('util'),
     isEmpty = require('underscore').isEmpty,
-    outcome = [];
+    location = null,
+    device = null,
+    action = null,
+    parameters = null,
+    location_assumed = false,
+    device_assumed = false,
+    action_assumed = false;
 
-var parse = function(data, callback, final_callback, dispose) {
+var parse = function(data, steward, callback, final_callback, dispose) {
     var self = this;
+    var outcome = [];
 
-    //Determine what entities should be present
-    var entities = ["device","on_off","location"];
-
-    //Prepare expected entities, even blank ones
-    for (var i=0, l=entities.length; i < l; i++) {
-        var entity = entities[i];
-        if (!isEmpty(entity)) { //make sure we don't accidentally add a blank member
-            if (!isEmpty(data['outcome']['entities'][entity])) {
-                console.log("Entity: " + entity);
-                console.log(JSON.stringify(data['outcome']['entities'][entity],null,4));
-                outcome[entity] = data['outcome']['entities'][entity]["value"];
-            }
-        }
+    for(var attributeName in data['outcome']['entities']){
+        console.log(attributeName+": "+data['outcome']['entities'][attributeName]['value']);
+        outcome[attributeName] = data['outcome']['entities'][attributeName]['value'];
     }
+
+    console.log(outcome.toString());
 
     //Can we make an assumption to determine unpresent values?
-    if (isEmpty(outcome['location'])) {
-        //###TODO - Rooms: Upon adding group functionality, track this node's room $
-        //         and use it here when necessary
-
-        //###TODO: Can we infer the location based on the subject name?
-        outcome['location'] = "living room";
+    if (!isEmpty(outcome['location'])) {
+        //Great, lets see if we can find the group
+        location = steward.getGroupByName(outcome['location']);
     }
 
-//    if (isEmpty(outcome['device'])) {
+    if (isEmpty(location)) { //No location, either we couldn't find one, or one wasn't provided
+        //###TODO - Rooms: Upon adding group functionality, track this node's room
+        //         and use it here when necessary
+        location = "group/1";
+        location_assumed = true;
+    }
+
+    if (!isEmpty(outcome['device'])) {
+        //Great, lets see if we can find the device ID
+        device = steward.getDeviceIDByName(outcome['device']);
+    }
+
+    if (isEmpty(device)) {
         //###TODO: Can we infer the actual device name based on the intent, location & action (if present)?
-        outcome['device'] = "device/4";
-//    } //###TODO: Verify the subject is actually a valid device! "Turn on the light" probably won't 
+        //          What if it's a group name they're referencing? (IE - 'lights')
+        device = "device/4";
+        device_assumed = true;
+    } else {
+        //###TODO: Verify the subject is actually a valid device! "Turn on the light" probably won't 
         //work without some thought behind what "light" actually means
         //"Lights" is a better subject to make assumptions on - "light" could mean any one
         //specific light in a room - check how many on_off devices there are, if any have "light"
         //in their name, etc, to see if you can make a good guess. If not, prompt for the answer
+        
+        console.log("Device Exists? " + steward.deviceExists(outcome['device']));
 
-    if (isEmpty(outcome['on_off'])) {
-        //Can we infer the action based on intent, subject and/or location?
-        //IE - "flip the light" etc
+        //Does the device exist?
+        if (steward.deviceExists(outcome['device'])) {
+            //Does it exist in the given location?
+            if (steward.deviceExistsInGroup(outcome['device'],location)) {
+                //Win! Use it.
+                device = outcome['device'];
+            } else {
+                //###TODO: Is there only one of this type of device? If so, use it if we assumed
+                //the location. 
+                    //If we didn't assume the location prompt because the user gave us a specific location.
+                //If there is more than one device of this type/name, prompt for more info
 
-        //When in doubt, toggle the light's status
-        if (steward.get_status(outcome['device']) == "off") {
-            outcome['on_off'] = "on";
+                device = "device/4";
+                device_assumed = true;                    
+            }
         } else {
-            outcome['on_off'] = "off";
+            //Device Not Found - can we use what we have to make an assumption?
+            //###TODO: Use data available to make assumptions? (device name, action, location)
+            device = "device/4";
+            device_assumed = true;
         }
     }
 
-    //Decide if we have all the necessary information to perform this action or not
-    outcome["complete"] = (!isEmpty(outcome['device']) && !isEmpty['on_off']);
+    if (isEmpty(outcome['on_off'])) {
+        //###TODO: Can we infer the action based on intent, subject and/or location?
+        //IE - "flip the light" etc
+
+        //When in doubt, toggle the device's status
+        if (steward.get_status(device) == "off") {
+            action = "on";
+        } else {
+            action = "off";
+        }
+        action_assumed = true;
+    } else {
+        //Does the action exist for this device?
+        if(steward.actionExists(device,outcome["on_off"])) {
+            //Great! Use it.
+            action = outcome["on_off"];
+        } else {
+            //The action doesn't exist, just toggle the device
+            if (steward.get_status(device) == "off") {
+                action = "on";
+            } else {
+                action = "off";
+            }
+            action_assumed = true;            
+        }
+    }
+
+    console.log("command_toggle Decision --- Device: " + device + ", Location: " + location + ", Action: " + action);
 
     callback(this, final_callback, dispose);
 }
 module.exports.parse = parse;
 
-var location = function() {
-    return outcome['location'];
+var getLocation = function() {
+    return location;
 }
-module.exports.getLocation = location;
+module.exports.getLocation = getLocation;
 
-var device = function() {
-    return outcome['device'];
+var getDevice = function() {
+    return device;
 }
-module.exports.getDevice = device;
+module.exports.getDevice = getDevice;
 
-var action = function() {
-    return outcome['on_off'];
+var getAction = function() {
+    return action;
 }
-module.exports.getAction = action;
+module.exports.getAction = getAction;
 
 var complete = function() {
-    console.log(outcome);
-    return outcome['complete'];
+    //Return if there is data in 
+    return (!isEmpty(device) && !isEmpty(action));
 }
 module.exports.isComplete = complete;
 
-var parameters = function () {
-    //parameters are always null for on/off commands, but other devices have them
-    return null;
+var getParameters = function () {
+    //parameters are always null for on/off commands, but other devices may have them
+    return parameters;
 }
-module.exports.getParameters = parameters;
+module.exports.getParameters = getParameters;

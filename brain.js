@@ -13,7 +13,7 @@ var init_callback = function(data) {
     //sphinx.launch(null,speech_received,null);
 
     //This line is just for testing...
-    speech_received("flip the light");
+    speech_received("flip the light off");
 }
 
 var update_callback = function(data) {
@@ -59,7 +59,7 @@ var decide = function(command, final_callback, dispose) {
         //var intent = command['outcome']['intent'];
         
         var intent = require('./intents/' + command['outcome']['intent']);
-        intent.parse(command, respond, final_callback, dispose);
+        intent.parse(command, steward, respond, final_callback, dispose);
         //####Intelligently fill in the entities
         
         //command['outcome']['entities']['on_off']['value'] = "off";
