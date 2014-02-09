@@ -8,7 +8,8 @@ var util    = require('util'),
     parameters = null,
     location_assumed = false,
     device_assumed = false,
-    action_assumed = false;
+    action_assumed = false,
+    parameters_assumed = false;
 
 var parse = function(data, steward, callback, final_callback, dispose) {
     var self = this;
@@ -19,7 +20,7 @@ var parse = function(data, steward, callback, final_callback, dispose) {
         outcome[attributeName] = data['outcome']['entities'][attributeName]['value'];
     }
 
-    console.log(outcome.toString());
+    //console.log("Outcome: " + outcome["number"]);
 
     //Can we make an assumption to determine unpresent values?
     if (!isEmpty(outcome['location'])) {
@@ -39,10 +40,11 @@ var parse = function(data, steward, callback, final_callback, dispose) {
         device = steward.getDeviceIDByName(outcome['device']);
     }
 
-    if (isEmpty(device)) {
+    if (isEmpty(device) || device == false) {
         //###TODO: Can we infer the actual device name based on the intent, location & action (if present)?
         //          What if it's a group name they're referencing? (IE - 'lights')
-        device = "device/4";
+        device = steward.getDeviceByReference(device, location, ["on","off"], ["level"]);
+        device = "device/14";
         device_assumed = true;
     } else {
         //###TODO: Verify the subject is actually a valid device! "Turn on the light" probably won't 
@@ -65,45 +67,35 @@ var parse = function(data, steward, callback, final_callback, dispose) {
                     //If we didn't assume the location prompt because the user gave us a specific location.
                 //If there is more than one device of this type/name, prompt for more info
 
-                device = "device/4";
+                device = "device/14";
                 device_assumed = true;                    
             }
         } else {
             //Device Not Found - can we use what we have to make an assumption?
             //###TODO: Use data available to make assumptions? (device name, action, location)
-            device = "device/4";
+            device = "device/14";
             device_assumed = true;
         }
     }
 
-    if (isEmpty(outcome['on_off'])) {
-        //###TODO: Can we infer the action based on intent, subject and/or location?
-        //IE - "flip the light" etc
+    //console.log("Outcome: " + outcome['number'] + " -- isNaN? " + isNaN(outcome['number']));
 
-        //When in doubt, toggle the device's status
-        if (steward.get_status(device) == "off") {
-            action = "on";
-        } else {
+    if (!isNaN(outcome['number'])) { //If the percentage to dim to is available, set it
+        //console.log("Inside isEmpty Number " + outcome['number']);
+        if (outcome['number'] < 1) {
             action = "off";
-        }
-        action_assumed = true;
-    } else {
-        //Does the action exist for this device?
-        if(steward.actionExists(device,outcome["on_off"])) {
-            //Great! Use it.
-            action = outcome["on_off"];
         } else {
-            //The action doesn't exist, just toggle the device
-            if (steward.get_status(device) == "off") {
-                action = "on";
-            } else {
-                action = "off";
-            }
-            action_assumed = true;            
+            action = "on";
+
+            //Throttle the level to 99%. 100% tends to correspond to 50%. Possible bug in Intermatic dimmer switches?
+            //Need to test 100% with other dimmer switch manufacturers
+            if (outcome['number'] > 99) outcome['number'] = 99;
         }
+
+        parameters = JSON.stringify({ 'level': outcome['number'] });
     }
 
-    console.log("command_toggle Decision --- Device: " + device + ", Location: " + location + ", Action: " + action);
+    console.log("command_dim Decision --- Device: " + device + ", Location: " + location + ", Action: " + action + " -- Parameters: " + parameters);
 
     callback(this, final_callback, dispose);
 }
@@ -126,7 +118,7 @@ module.exports.getAction = getAction;
 
 var complete = function() {
     //Return if there is data in 
-    return (!isEmpty(device) && !isEmpty(action));
+    return (!isEmpty(device) && !isEmpty(parameters));
 }
 module.exports.isComplete = complete;
 

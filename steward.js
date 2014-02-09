@@ -150,8 +150,20 @@ var toggle = function(requestID, deviceName, parameter, callback) {
 module.exports.toggle = toggle;
 */
 
-var perform = function(requestID, deviceName, action, parameter, callback) {
-	var deviceIDNumber = this.getDeviceIDByName(deviceName).replace('device/','');
+var perform = function(requestID, device, action, parameter, callback) {
+    console.log("Performing action: '" + action + "' on " + device + ". Parameters: " + parameter);
+    if (!this.deviceExists(device)) {
+	    device = this.getDeviceIDByName(device);
+    }
+    if (!isEmpty(device)) {
+        var deviceIDNumber = device.replace('device/','');
+    }
+
+    if (isNaN(deviceIDNumber)) {
+        console.log("Device not Found: " + device);
+        return false;
+    }
+
     this.manage(requestID, '/api/v1/device/perform/' + deviceIDNumber, action, parameter, callback);
 }
 module.exports.perform = perform;
@@ -231,18 +243,30 @@ var getThings = function(callback) {
 }
 module.exports.getThings = getThings;
 
-var getValue = function(whoami, whatami) {
+var getStatus = function(whoami, whatami) {
     var self = this;
 
     if (isEmpty(whatami)) {
         //### Find out whatami based on whoami!
-        console.log("JSON as is in get_value\n" + JSON.stringify(self.active_things,null,4));
-        //If you can't find whatami, return null;
+        whatami = getWhatAmIbyWhoAmI(whoami);
+        if (!isEmpty(whatami)) {
+            console.log("JSON as is in getStatus: whatami=" + whatami + "\n" + JSON.stringify(self.active_things[whatami],null,4));
+            return self.active_things[whatami][whoami].status;
+        }        
     }
 
-    return self.active_things[whatami][whoami].status;
+    return false;
 }
-module.exports.getValue = getValue;
+module.exports.getStatus = getStatus;
+
+var getWhatAmIbyWhoAmI = function(whoami) {
+    var self = this;
+
+    for (var whatami in self.active_things) {
+        //console.log
+        if (self.active_things[whatami].hasOwnProperty(whoami)) return whatami;
+    }
+}
 
 var getMeta = function(callback) {
     var self = this;
@@ -425,8 +449,8 @@ var addDeviceToGroup = function(ID, name, deviceNames, callback) {
     ws.onerror = function(event) {
             console.log("addDeviceToGroup Socket error: " + util.inspect(event, {depth: null}));
             try {
-                    ws.close();
-                    console.log("Closed websocket: addDeviceToGroup..");
+                ws.close();
+                console.log("Closed websocket: addDeviceToGroup..");
             } catch (ex) {}
     };
 
@@ -497,6 +521,47 @@ var getDeviceIDByName = function(deviceName) {
     return false;
 }
 module.exports.getDeviceIDByName = getDeviceIDByName;
+
+var getDeviceIDByReference = function(reference, groupID, actions, parameters) {
+    var self = this;
+    var options = []; //For later
+    var remaining = []; //For later
+
+    console.log("getDeviceIDByReference - Begin");
+
+    //Narrow down by group
+    options = self.groups[groupID]['members'];
+    console.log("Available Members In Group: " + JSON.stringify(options,null,4));
+    
+    //Narrow down by actions & parameters
+    for(var deviceID in options) {
+        var hasAll = true;
+        for(var action in actions) {
+            //We need to check if this device has all of the actions in this array
+            hasAll = hasAll && self.deviceHasAction(deviceID, action);
+        }
+        if (hasAll)  { 
+            //If the device has all the actions we need, keep it
+            remaining[deviceID] = options[deviceID];
+        }
+    }
+
+    //Do we have just one yet?
+    if (remaining.length == 0) { 
+        return false;
+    } else if (remaining.length == 1) {
+        //If one, return device ID
+        
+    }
+
+    //Is reference plural?
+        //If plural, create group & return group ID?
+        //If not plural, check for similarities between names & reference
+
+    //If one Thing left, return ID
+    //If more than one, throw error
+}
+module.exports.getDeviceIDByReference;
 
 var hasChanged = function(thing, update) {
 	var ret;

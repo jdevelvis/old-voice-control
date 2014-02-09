@@ -3,7 +3,7 @@ var https = require('https'),
 
 var think = function(data, callback) {
     var self = this;
-    call_api('message','?q=' + encodeURIComponent(data), callback);
+    call_api('message','?q=' + encodeURIComponent(data), callback, 4);
 
     /* /var future = Future.create();
     var options = {
@@ -35,7 +35,7 @@ var think = function(data, callback) {
 
 var list_expressions = function(callback) {
     var self = this;
-    self.call_api(corpus,null,callback);
+    self.call_api('corpus',null,callback, 4);
 /*
     var self = this;
     var options = {
@@ -71,7 +71,7 @@ var get_entities = function(intent, callback) {
 }
 */
 
-var call_api = function(endpoint, data, callback) {
+var call_api = function(endpoint, data, callback, tries) {
     //var future = Future.create();
     var options = {
         host: 'api.wit.ai',
@@ -91,7 +91,27 @@ var call_api = function(endpoint, data, callback) {
         res.on('end', function () {
             //future.fulfill(undefined, JSON.parse(response));
             //console.log("think_callback");
-            callback(null, JSON.parse(response));
+
+//            callback(null,JSON.parse(response));
+//            console.log("success!");
+            try { //Try to send the JSON object back
+//                console.log('----\n' + response + '----');
+                response = JSON.parse(response);
+               
+//                return;
+            } catch (e) { //If we got an erroneous response (likely a 404 or 503 error) then try again
+                if (tries > 0) {
+                    console.log("wit.js call_api: Trying again");
+                    setTimeout(call_api, 5000, endpoint, data, callback, tries-1);
+                } else {
+                    console.log("wit.js call_api: Unable to contact Wit.ai. Giving Up.");
+                }
+                return;
+            }
+
+            //We know it's okay to send this, or we wouldn't be here
+            callback(null, response);
+
         });
     }).on('error', function(e) {
         //future.fulfill(e, undefined);

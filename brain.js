@@ -13,7 +13,7 @@ var init_callback = function(data) {
     //sphinx.launch(null,speech_received,null);
 
     //This line is just for testing...
-    speech_received("flip the light off");
+    speech_received("dim the lights to 100 percent");
 }
 
 var update_callback = function(data) {
@@ -81,7 +81,7 @@ var decide = function(command, final_callback, dispose) {
 
 var respond = function(action, final_callback) {
     if (!action.isComplete()) final_callback("Incomplete Action", null);
-    else steward.perform(101, action.getDevice(), action.getAction(), action.getParameters(), final_callback);
+    else steward.perform(101, action.getDeviceID(), action.getAction(), action.getParameters(), final_callback);
 }
 
 /*
