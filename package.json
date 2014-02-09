@@ -1,0 +1,34 @@
+{
+  "name": "EHMA",
+  "version": "0.0.1",
+  "description": "EHMA - Entire Home Management Authority",
+  "main": "index.js",
+  "dependencies": {
+    "ws": "~0.4.31",
+    "underscore": "~1.5.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jdevelvis/EHMA.git"
+  },
+  "author": "Jason DeVelvis",
+  "bugs": {
+    "url": "https://github.com/jdevelvis/EHMA/issues"
+  },
+  "homepage": "https://github.com/jdevelvis/EHMA",
+  "keywords": [
+    "Home Automation",
+    "The Thing System",
+    "TSS",
+    "Client",
+    "Node.js",
+    "PocketSphinx",
+    "Voice Activation",
+    "Speech Recognition",
+    "Voice Command"
+  ]
+}
