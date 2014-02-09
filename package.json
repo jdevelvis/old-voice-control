@@ -5,7 +5,8 @@
   "main": "index.js",
   "dependencies": {
     "ws": "~0.4.31",
-    "underscore": "~1.5.2"
+    "underscore": "~1.5.2",
+    "smart-plurals": "~1.0.2"
   },
   "devDependencies": {},
   "scripts": {

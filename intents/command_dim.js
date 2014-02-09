@@ -43,7 +43,8 @@ var parse = function(data, steward, callback, final_callback, dispose) {
     if (isEmpty(device) || device == false) {
         //###TODO: Can we infer the actual device name based on the intent, location & action (if present)?
         //          What if it's a group name they're referencing? (IE - 'lights')
-        device = steward.getDeviceByReference(device, location, ["on","off"], ["level"]);
+        device = steward.getDeviceIDByReference(device, location, ["on","off"], ["level"]);
+        console.log("DeviceID By Reference: " + device);
         device = "device/14";
         device_assumed = true;
     } else {

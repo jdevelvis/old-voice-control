@@ -27,7 +27,17 @@ var init = function(init_callback, updates_callback, meta_callback) {
     }
 	
 	//Load the actors, active things, then start listening for updates & fire init_callback
-	self.actors(function () { self.getThings(function() { self.updates(updates_callback); self.getMeta(meta_callback); init_callback() }) });
+	//### This should be the init function! self.actors(function () { self.getThings(function() { self.updates(updates_callback); self.getMeta(meta_callback); init_callback() }) });
+    self.actors(function () { 
+        self.getThings(function() {
+        	//### Commenting the updates call to help keep websocket overloading away 
+            //self.updates(updates_callback); 
+            self.getMeta(function() {
+                meta_callback();
+                init_callback();
+            });
+        }); 
+    });
 }
 module.exports.init = init;
 
@@ -248,7 +258,7 @@ var getStatus = function(whoami, whatami) {
 
     if (isEmpty(whatami)) {
         //### Find out whatami based on whoami!
-        whatami = getWhatAmIbyWhoAmI(whoami);
+        whatami = self.getWhatAmIByWhoAmI(whoami);
         if (!isEmpty(whatami)) {
             console.log("JSON as is in getStatus: whatami=" + whatami + "\n" + JSON.stringify(self.active_things[whatami],null,4));
             return self.active_things[whatami][whoami].status;
@@ -259,7 +269,7 @@ var getStatus = function(whoami, whatami) {
 }
 module.exports.getStatus = getStatus;
 
-var getWhatAmIbyWhoAmI = function(whoami) {
+var getWhatAmIByWhoAmI = function(whoami) {
     var self = this;
 
     for (var whatami in self.active_things) {
@@ -272,40 +282,39 @@ var getMeta = function(callback) {
     var self = this;
 
     var ws = new WebSocket('ws://127.0.0.1:8887/manage');
-    console.log("Created websocket: getGroups.");
+    console.log("Created websocket: getMeta.");
 
     ws.onopen = function(event) {
-            console.log("Opened websocket to steward: getGroups");
+            console.log("Opened websocket to steward: getMeta");
             var json = JSON.stringify({ path:'/api/v1/group/list',
-                    requestID :'1',
+                    requestID : 'getMeta',
                     options   :{ depth: 'all' }
             });
             ws.send(json);
     };
 
-        ws.onmessage = function(event) {
-                var json_data = JSON.parse(event.data);
-                //console.log(JSON.stringify(json_data['result']['groups'],null,4));
-                self.groups = json_data['result']['groups'];
-                self.places = json_data['result']['places'];
-                self.events = json_data['result']['events'];
-                self.tasks = json_data['result']['tasks'];
-                callback(json_data['result']);
-                ws.close();
-        };
+    ws.onmessage = function(event) {
+        var json_data = JSON.parse(event.data);
+        //console.log(JSON.stringify(json_data['result']['groups'],null,4));
+        self.groups = json_data['result']['groups'];
+        self.places = json_data['result']['places'];
+        self.events = json_data['result']['events'];
+        self.tasks = json_data['result']['tasks'];
+        callback(json_data['result']);
+        ws.close();
+    };
 
-        ws.onclose = function(event) {
-                console.log("getGroups Socket closed: " + event.wasClean );
-        };
+    ws.onclose = function(event) {
+        console.log("getMeta Socket closed: " + event.wasClean );
+    };
 
-        ws.onerror = function(event) {
-                console.log("getGroups Socket error: " + util.inspect(event, {depth: null}));
-                try {
-                        ws.close();
-                        console.log("Closed websocket: getGroups..");
-
-                } catch (ex) {}
-        };    
+    ws.onerror = function(event) {
+        console.log("getMeta Socket error: " + util.inspect(event, {depth: null}));
+        try {
+           ws.close();
+           console.log("Closed websocket: getMeta..");
+        } catch (ex) {}
+    };    
 }
 module.exports.getMeta = getMeta;
 
@@ -317,7 +326,7 @@ var getGroupIDByName = function(groupName) {
     groupName = groupName.toLowerCase().trim();
 
     for(var groupID in self.groups) {
-        //console.log(groupID+": "+self.groups[groupID].name);
+        console.log(groupID+": "+self.groups[groupID].name);
         if (self.groups[groupID].name.toLowerCase().trim() == groupName)
             return groupID; //Found it!
     }
@@ -345,19 +354,18 @@ var createGroup = function(name, UUID, deviceNames, callback) {
             console.log("Opened websocket to steward: createGroup");
 
             var json = { path:'/api/v1/group/create/' + UUID,
-                    requestID :'1',
+                    requestID :'201',
                     name: name,
                     members: deviceNames
             }
 
-            console.log('>>>' + JSON.stringify(json,null,4) + '<<<');
+            //console.log('>>>' + JSON.stringify(json,null,4) + '<<<');
             ws.send(JSON.stringify(json,null,4));
     };
 
     ws.onmessage = function(event) {
             var json_data = JSON.parse(event.data);
             console.log(JSON.stringify(json_data,null,4));
-            callback();
             ws.close();
     };
 
@@ -522,46 +530,91 @@ var getDeviceIDByName = function(deviceName) {
 }
 module.exports.getDeviceIDByName = getDeviceIDByName;
 
+var deviceHasAction = function (deviceID, action) {
+    for (var whatami in this.active_things) {
+        if (!isEmpty(this.active_things[whatami][deviceID])) {
+            return (this.actors[whatami]['perform'].indexOf(action) >= 0)
+        }
+    }
+        
+    return false; //If we get here, we didn't even find the device...
+}
+module.exports.deviceHasAction = deviceHasAction;
+
+var deviceHasParameter = function (deviceID, parameter) {
+    for (var whatami in this.active_things) {
+        if (!isEmpty(this.active_things[whatami][deviceID])) {
+            return (this.actors[whatami]['properties'].indexOf(parameter) >= 0)
+        }
+    }
+
+    return false; //If we get here, we didn't even find the device...
+}
+module.exports.deviceHasParameter = deviceHasParameter;
+
 var getDeviceIDByReference = function(reference, groupID, actions, parameters) {
     var self = this;
-    var options = []; //For later
-    var remaining = []; //For later
+    var options = [];
+    var remaining = [];
 
     console.log("getDeviceIDByReference - Begin");
+    console.log("Group ID: " + groupID);
+
+    var group = getGroup(groupID);
+    if (group == false) return false; //If the group doesn't exist, return false
 
     //Narrow down by group
-    options = self.groups[groupID]['members'];
+    options = group['members'];
     console.log("Available Members In Group: " + JSON.stringify(options,null,4));
     
     //Narrow down by actions & parameters
-    for(var deviceID in options) {
+    for(var i=0; i<options.length; i++) {
         var hasAll = true;
-        for(var action in actions) {
-            //We need to check if this device has all of the actions in this array
-            hasAll = hasAll && self.deviceHasAction(deviceID, action);
+        if (Array.isArray(actions)) {
+            for(var x=0; x<actions.length; x++) {
+                //We need to check if this device has all of the actions in this array
+                hasAll = hasAll && self.deviceHasAction(options[i], actions[x]);
+                console.log("Action - " + actions[x] + " -- hasAll: " + hasAll);        
+            }
+        }
+        if (Array.isArray(parameters)) {
+            for(var x=0; x<parameters.length; x++) {
+                hasAll = hasAll && self.deviceHasParameter(options[i], parameters[x]);
+                console.log("Parameter - " + parameters[x] + " -- hasAll: " + hasAll);        
+            }
         }
         if (hasAll)  { 
             //If the device has all the actions we need, keep it
-            remaining[deviceID] = options[deviceID];
+            remaining.push(options[i]);
         }
     }
 
     //Do we have just one yet?
     if (remaining.length == 0) { 
+        console.log("nothing remaining");
         return false;
     } else if (remaining.length == 1) {
-        //If one, return device ID
-        
+        console.log("One Remaining: " + remaining[0]);
+        //If there's only one, return the first element in the array, it's our only device ID
+        return remaining[0];
     }
 
-    //Is reference plural?
+    //If we're still here, remaining has more than one member
+    //###TODO-language: When integrating other languages into code, don't forget this call!
+    //Is reference plural? 
+    var language = require('smart-plurals').plurals.getRule('en');
+    if (language(reference,[false, true])) {
         //If plural, create group & return group ID?
+        console.log("is plural");
+    } else {
         //If not plural, check for similarities between names & reference
+        console.log("not plural");
+    }
 
     //If one Thing left, return ID
     //If more than one, throw error
 }
-module.exports.getDeviceIDByReference;
+module.exports.getDeviceIDByReference = getDeviceIDByReference;
 
 var hasChanged = function(thing, update) {
 	var ret;
