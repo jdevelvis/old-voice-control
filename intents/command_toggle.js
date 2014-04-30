@@ -42,7 +42,7 @@ var parse = function(data, steward, callback, final_callback, dispose) {
     if (isEmpty(device)) {
         //###TODO: Can we infer the actual device name based on the intent, location & action (if present)?
         //          What if it's a group name they're referencing? (IE - 'lights')
-        device = "device/4";
+        device = "device/7";
         device_assumed = true;
     } else {
         //###TODO: Verify the subject is actually a valid device! "Turn on the light" probably won't 
@@ -65,13 +65,13 @@ var parse = function(data, steward, callback, final_callback, dispose) {
                     //If we didn't assume the location prompt because the user gave us a specific location.
                 //If there is more than one device of this type/name, prompt for more info
 
-                device = "device/4";
+                device = "device/7";
                 device_assumed = true;                    
             }
         } else {
             //Device Not Found - can we use what we have to make an assumption?
             //###TODO: Use data available to make assumptions? (device name, action, location)
-            device = "device/4";
+            device = "device/7";
             device_assumed = true;
         }
     }

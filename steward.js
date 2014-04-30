@@ -12,7 +12,7 @@ var	actors=null,
     tasks=null;
 
 //### Warning! the init_callback function will be called at the 
-//    same time as the update function, this may result in
+//    same time as the update function, this may result in issues
 var init = function(init_callback, updates_callback, meta_callback) {
 	var self = this;
 
@@ -27,11 +27,10 @@ var init = function(init_callback, updates_callback, meta_callback) {
     }
 	
 	//Load the actors, active things, then start listening for updates & fire init_callback
-	//### This should be the init function! self.actors(function () { self.getThings(function() { self.updates(updates_callback); self.getMeta(meta_callback); init_callback() }) });
     self.actors(function () { 
         self.getThings(function() {
         	//### Commenting the updates call to help keep websocket overloading away 
-            //self.updates(updates_callback); 
+            self.updates(updates_callback); 
             self.getMeta(function() {
                 meta_callback();
                 init_callback();
@@ -58,7 +57,7 @@ var updates = function(callback) {
 		if (!isEmpty(data)) {
         	var has_changed = false; //Track whether or not there were changed
 
- 			//console.log("Update received!\n" + JSON.stringify(data,null,4) + "\n---");
+ 			console.log("Update received!\n" + JSON.stringify(data,null,4) + "\n---");
 
 	        	//Check if anything needs updated, and if so, update it
 	        	var changed = data.every(function(element, index, array) {
@@ -74,31 +73,26 @@ var updates = function(callback) {
                         		self.active_things[element.whatami][element.whoami].status = element.status;
 		                        console.log("Updated Status");
 
-	        	                //### Todo: check if there's a magic event associated with this status update
-        	        	        //#magicevent
-
                 	        	has_changed = true;
 	                	}
 	        	        if (!isEqual(self.active_things[element.whatami][element.whoami].info, element.info)) {
         	        	        //Info Update
 	        	                self.active_things[element.whatami][element.whoami].info = element.info;
-                        		console.log("Updated Info" );
-
-        	                	//### Todo: check if there's a magic event associated with this info update
-	                	        //#magicevent
+                        		console.log("Updated Info. JSON: " + JSON.stringify(element,null,4) );
 
         	                	has_changed = true;
 	        	        }
-        				if (has_changed) {
+       				if (has_changed) {
 	                	        //Update the updated property
         	                	self.active_things[element.whatami][element.whoami].updated = element.updated;
+					console.log("whatami? " + element.whatami + " -- whoami? " + element.whoami);
+
+					callback(element);
 	        	        }
                     } else {//###Likely meaning here - this device was just added!
                         console.log(JSON.stringify(element,null,4));
                     }
-			    });
-
-			callback(has_changed);
+		    });
 		}
 	};
 
@@ -115,6 +109,16 @@ var updates = function(callback) {
 	}
 }
 module.exports.updates = updates;
+
+/*var doMagic = function(element) {
+	//###Needs to be modified to be dynamic. Hard coding for now
+	switch (element.whatami) {
+		case '/device/sensor/ehma/roomie':
+			
+		break;
+	}
+}
+*/
 
 var manage = function(requestID, device_path, action, parameter, callback) {
 	var ws = new WebSocket('ws://127.0.0.1:8887/manage');
@@ -423,7 +427,6 @@ var deleteGroup = function(ID, callback) {
 }
 module.exports.deleteGroup = deleteGroup;
 
-
 var addDeviceToGroup = function(ID, name, deviceNames, callback) {
     var self = this;
 
@@ -513,7 +516,19 @@ var deviceExists = function(deviceID) {
 }
 module.exports.deviceExists = deviceExists;
 
-var getDeviceIDByName = function(deviceName) {
+var getDevicesByName = function(deviceName, groupID) {
+	//###TODO - Use groupID to help find specific device if necessary
+	//This will require an update below, as right now this function simply returns the
+	//first one it finds, it doesn't queue them and check for multiples. It should 
+	//do so and then return them all (IE - "Turn off the lights" should turn off
+	//all the lights in the room
+
+	//###TODO - Should this be replaced by a function that returns whatami AND whoami?
+	//To further aid the intent code in determining the best action to take? Or will
+	//that create more confusion, since any whatami can be added at any time, and
+	//if it's not hard coded, could cause problems. OR maybe having that could help
+	//with device-specific stuff that isn't as easy to assume? 60/40 in favor of
+	//providing the whatami data... Just in case...
     var self = this;
 
     deviceName = deviceName.toLowerCase().trim();
@@ -528,7 +543,7 @@ var getDeviceIDByName = function(deviceName) {
 
     return false;
 }
-module.exports.getDeviceIDByName = getDeviceIDByName;
+module.exports.getDevicesByName = getDevicesByName;
 
 var deviceHasAction = function (deviceID, action) {
     for (var whatami in this.active_things) {
@@ -552,8 +567,9 @@ var deviceHasParameter = function (deviceID, parameter) {
 }
 module.exports.deviceHasParameter = deviceHasParameter;
 
-var getDeviceIDByReference = function(reference, groupID, actions, parameters) {
+var inferDevices = function(groupID, actions, parameters) {
     var self = this;
+    var device = [];
     var options = [];
     var remaining = [];
 
@@ -561,6 +577,8 @@ var getDeviceIDByReference = function(reference, groupID, actions, parameters) {
     console.log("Group ID: " + groupID);
 
     var group = getGroup(groupID);
+//###TODO - This needs to be an if statement, not a kill switch. We can still try to assume things
+//without a group id... What if it's the only Thing in the house? (like a Thermostat)
     if (group == false) return false; //If the group doesn't exist, return false
 
     //Narrow down by group
@@ -604,7 +622,7 @@ var getDeviceIDByReference = function(reference, groupID, actions, parameters) {
     //Is reference plural? 
     var language = require('smart-plurals').plurals.getRule('en');
     if (language(reference,[false, true])) {
-        //If plural, create group & return group ID?
+        //###Todo - If plural, create group & return group ID?
         console.log("is plural");
     } else {
         //If not plural, check for similarities between names & reference

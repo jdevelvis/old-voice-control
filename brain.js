@@ -1,6 +1,6 @@
 var wit     = require('./wit'),
-    steward = require('./steward'),
-    sphinx = require('./sphinx');
+    steward = require('./steward')
+;
 
 var init = function(callback) {
     //Initialize the steward
@@ -9,15 +9,22 @@ var init = function(callback) {
 module.exports.init = init;
 
 var init_callback = function(data) {
-    //###This line is NEEDED to launch the sphinx listener!
-    //sphinx.launch(null,speech_received,null);
-
-    //This line is just for testing...
-    speech_received("dim the lights to 100 percent");
+//###This line is just for testing... Will be replaced with command_received
+//    speech_received("dim the lights to 100 percent");
 }
 
-var update_callback = function(data) {
+var update_callback = function(element) {
+	console.log (">> Update received for: " + JSON.stringify(element,null,4));
 
+	//Check if there's a magic event associated with this update
+        //###Todo - Needs to be modified to be dynamic (maybe similar to intent structure)
+	//Hard coding for now
+        switch (element.whatami) {
+                case '/device/sensor/ehma/roomie':
+			console.log(element.info.command);
+			speech_received(element.info.command);
+                break;
+        }
 }
 
 var manage_callback = function(data) {
@@ -25,69 +32,37 @@ var manage_callback = function(data) {
 }
 
 var speech_received = function(command) {
-    //###Removed sphinx.dispose for testing without sphinx running to save on reboots!
-    think(command, manage_callback, dispose);
+    think(command, manage_callback);
 }
 
-var dispose = function() {
-}
-
-var think = function(data, final_callback, dispose) {
+var think = function(command, callback) {
     var self = this;
     data = data.toString().toLowerCase();
-    console.log(data);
+    console.log(command);
 
-    wit.think(data,function(err, response) { 
+    wit.think(command,function(err, response) { 
         if (!err) {
-            decide(response, final_callback, dispose);
+	    //Make sure there is an outcome
+	    if (response['outcome']) {
+        	var outcome = [];
+	        //Find the intent & parse it
+        	var intent = require('./intents/' + response['outcome']['intent']);
+	        intent.take_action(response, steward, function(status) {
+		    console.log("Status: " + status);
+		    if (callback) callback(status);
+		});
+	    }
+
         } else {} //### Error Handling Needed Here
     });
 }
 
-var decide = function(command, final_callback, dispose) {
+var decide = function(data_from_wit, callback) {
     console.log("------- Deciding On An Action -------");
 /*
     console.log(command.outcome);
     console.log(command['outcome']);
 */
-    console.log(JSON.stringify(command,null,4));
-
-    //Make sure there is an outcome
-    if (command['outcome']) {
-        var outcome = [];
-        //Find the intent
-        //var intent = command['outcome']['intent'];
-        
-        var intent = require('./intents/' + command['outcome']['intent']);
-        intent.parse(command, steward, respond, final_callback, dispose);
-        //####Intelligently fill in the entities
-        
-        //command['outcome']['entities']['on_off']['value'] = "off";
-                
-/*
-        if (intent == "command_toggle") {
-            //console.log("Turning the lights on: " + steward.deviceIdFromName("device/4"));
-            //###TODO:  Do we want this to callback? Or just let it fizzle?
-            steward.perform(101,"device/4",command['outcome']['entities']['on_off']['value'],null,callback);
-            dispose();
-        }
-        if (command['outcome']['intent'] == "shut_down") {
-            dispose();
-        }
-*/
-    }
+    console.log("Outcome: " + JSON.stringify(data_from_wit,null,4));
 
 }
-
-var respond = function(action, final_callback) {
-    if (!action.isComplete()) final_callback("Incomplete Action", null);
-    else steward.perform(101, action.getDeviceID(), action.getAction(), action.getParameters(), final_callback);
-}
-
-/*
-function dispose() {
-    //Dispose of the sphinx thread
-    sphinx.dispose();
-}
-*/
-
