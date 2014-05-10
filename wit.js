@@ -2,7 +2,6 @@ var https = require('https'),
     bearer_auth = '7DKBTBCSC7UDTG5T73XOOOU4YOSZC4WI'; //the bearer_auth to the EHMA wit
 
 var think = function(data, callback) {
-    var self = this;
     call_api('message','?q=' + encodeURIComponent(data), callback, 4);
 
     /* /var future = Future.create();
@@ -34,8 +33,7 @@ var think = function(data, callback) {
 }
 
 var list_expressions = function(callback) {
-    var self = this;
-    self.call_api('corpus',null,callback, 4);
+    call_api('corpus','?',callback, 4);
 /*
     var self = this;
     var options = {
@@ -76,10 +74,10 @@ var call_api = function(endpoint, data, callback, tries) {
     var options = {
         host: 'api.wit.ai',
         path: '/' + endpoint + data, //?q=' + encodeURIComponent(data),
-        // the Authorization header allows you to access your Wit account
-        // make sure to replace it with your own
         headers: {'Authorization': 'Bearer ' + bearer_auth}
     };
+
+console.log(JSON.stringify(options,null,4));
 
     https.request(options, function(res) {
         var response = '';
