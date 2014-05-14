@@ -2,15 +2,16 @@
 
 var util    = require('util'),
     isEmpty = require('underscore').isEmpty,
-    find_devices = require('./intent').find_devices,
+    findDevices = require('./intent.js').findDevices,
     action = null,
     parameters = null;
 
-var takeAction = function(data_from_wit, steward, callback) {
+var takeAction = function(data_from_wit, roomie_id, steward, callback) {
     var self = this;
+	console.log("Taking Action");
 
     //Find the devices if possible. If it's not possible, can we tell why?
-    found = intent.findDevices(data_from_wit, steward, ["on","off"], ["level"]);
+    devices = findDevices(data_from_wit, roomie_id, steward, ["on","off"], ["level"]);
 
     if (!isNaN(outcome['number'])) { //If the percentage to dim to is available, set it
         //console.log("Inside isEmpty Number " + outcome['number']);
@@ -30,7 +31,7 @@ var takeAction = function(data_from_wit, steward, callback) {
         parameters = JSON.stringify({ 'level': level });
     }
 
-    console.log("command_dim Decision --- Device: " + device + ", Location: " + location + ", Action: " + action + " -- Parameters: " + parameters);
+    console.log("command_dim Decision --- Device: " + JSON.stringify(devices,null,4) + ", Location: " + location + ", Action: " + action + " -- Parameters: " + parameters);
 
     //Now take action on the data we have - do we need to prompt for more info? Can we do this?
     //Do we need to interact with the speaker?
@@ -39,7 +40,7 @@ var takeAction = function(data_from_wit, steward, callback) {
 
     callback();
 }
-module.exports.parse = parse;
+module.exports.takeAction = takeAction;
 
 var getLocation = function() {
     return location;

@@ -7,48 +7,58 @@ var util    = require('util'),
     location = null,
     devices = null,
     location_assumed = false,
-    devices_assumed = false,
+    devices_assumed = false;
 
 /*
 findDevices - using the data supplied, do your best to find any/all devices that fit this command
 */
-var findDevices = exports.findDevices = function(data_from_wit, steward, actions, parameters) {
+var findDevices = exports.findDevices = function(data_from_wit, roomie_id, steward, actions, parameters) {
     var self = this;
     var outcome = [];
 
     for(var attributeName in data_from_wit['outcome']['entities']){
-        console.log(attributeName+": "+data_from_wit['outcome']['entities'][attributeName]['value']);
+        console.log("Adding to outcome - " + attributeName+": "+data_from_wit['outcome']['entities'][attributeName]['value']);
         outcome[attributeName] = data_from_wit['outcome']['entities'][attributeName]['value'];
     }
 
-    //Can we make an assumption to determine unpresent values?
+	//Is there a location present? If so, try to determine the group by name
     if (!isEmpty(outcome['location'])) {
+		console.log("location is not empty");
         //Great, lets see if we can find the group
-        location = steward.getGroupByName(outcome['location']);
-    }
+        group = steward.getGroup(null,outcome['location']);
+		if (group != false) {
+			location = group.id;
+		}
+    } else { 
+		console.log("location is empty"); 
+	}
 
     if (isEmpty(location)) { //No location, either we couldn't find one, or one wasn't provided
         //###TODO - Rooms: Upon adding group functionality, track this node's room
         //         and use it here when necessary
-/*
-	location = "group/1";
-        location_assumed = true;
-*/
+		console.log("Looking up location by roomie. roomie_id=" roomie_id);
+		group = steward.getGroup(null,null,roomie_id);
+        if (group != false) {
+            location = group.id;
+	        location_assumed = true;
+        }
     }
 
+	//Did the response come with a device indicated?
     if (!isEmpty(outcome['device'])) {
         //Great, lets see if we can find the device ID
-        devices = steward.getDevicesByName(outcome['device'], location);
+        devices = steward.getDevices(outcome['device'], location);
     }
 
-    if (isEmpty(devices) || devices == false) {
+	//Did we find it?
+    if (isEmpty(devices) || devices == false) { //We didn't find it, try to infer it
         //###TODO: Can we infer the actual device name based on the intent, location & action (if present)?
         //          What if it's a group name they're referencing? (IE - 'lights')
         devices = steward.inferDevices(location, actions, parameters);
-        console.log("DeviceID By Reference: " + JSON.stringify(devices,null,4));
-        devices = "device/14";
+        console.log("DeviceIDs By Reference: " + JSON.stringify(devices,null,4));
+//        devices = "device/14";
         devices_assumed = true;
-    } else {
+    } else { //We found it!
         //###TODO: Verify the subject is actually a valid device! "Turn on the light" probably won't 
         //work without some thought behind what "light" actually means
         //"Lights" is a better subject to make assumptions on - "light" could mean any one

@@ -273,12 +273,12 @@ var getStatus = function(whoami, whatami) {
 }
 module.exports.getStatus = getStatus;
 
-var getWhatAmIByWhoAmI = function(whoami) {
+var getWhatAmI = function(whoami) {
     var self = this;
 
-    for (var whatami in self.active_things) {
+    for (var whatami in this.active_things) {
         //console.log
-        if (self.active_things[whatami].hasOwnProperty(whoami)) return whatami;
+        if (this.active_things[whatami].hasOwnProperty(whoami)) return whatami;
     }
 }
 
@@ -322,29 +322,50 @@ var getMeta = function(callback) {
 }
 module.exports.getMeta = getMeta;
 
-var getGroupIDByName = function(groupName) {
+var getGroup = function(group_id, group_name, device_id) {
     var self = this;
     if (isEmpty(self.groups)) return false;
 
-    //ignore case, remove any trailing or leading spaces
-    groupName = groupName.toLowerCase().trim();
+	if (!isEmpty(group_id)) {
+		if (!isEmpty(self.groups[group_id])) {
+			group = self.groups[group_id];
+			group['id'] = group_id;
+			return group;
+		}
+	} 
 
-    for(var groupID in self.groups) {
-        console.log(groupID+": "+self.groups[groupID].name);
-        if (self.groups[groupID].name.toLowerCase().trim() == groupName)
-            return groupID; //Found it!
-    }
-    //If we get here, we didn't find it...
+	//If we get here, we couldn't find the group by id
+	if (!isEmpty(group_name)) {
+		 //ignore case, remove any trailing or leading spaces
+	    group_name = group_name.toLowerCase().trim();
 
-    return false;    
-}
-module.exports.getGroupIDByName = getGroupIDByName;
+    	for(var gid in self.groups) {
+        	console.log(gid+": "+self.groups[gid].name);
+	        if (self.groups[gid].name.toLowerCase().trim() == group_name) {
+				//Found It!
+	            group = self.groups[gid];
+    	        group['id'] = gid;
+        	    return group;
+			}
+	    }	
+	}
+	
+	//If we get here, we couldn't find group by id or name
+	if (!isEmpty(device_id)) { //Find by device_id
+	    for(var gid in self.groups) {
+			//console.log(gid+": "+self.groups[gid].name);
+	        var group = self.groups[gid];
 
-var getGroup = function(groupID) {
-    var self = this;
-    if (isEmpty(self.groups)) return false;
+        	for(var key in group['members']) {
+	            if(group['members'][key] == device_id) {
+					group['id'] = gid;
+					return group;
+				}
+    	    }
+	    }
+	}
 
-    return self.groups[groupID];
+    return false; //if we get here, we didn't find a group
 }
 module.exports.getGroup = getGroup;
 
@@ -516,13 +537,7 @@ var deviceExists = function(deviceID) {
 }
 module.exports.deviceExists = deviceExists;
 
-var getDevicesByName = function(deviceName, groupID) {
-	//###TODO - Use groupID to help find specific device if necessary
-	//This will require an update below, as right now this function simply returns the
-	//first one it finds, it doesn't queue them and check for multiples. It should 
-	//do so and then return them all (IE - "Turn off the lights" should turn off
-	//all the lights in the room
-
+var getDevices = function(device_names, group_id, actions, parameters) {
 	//###TODO - Should this be replaced by a function that returns whatami AND whoami?
 	//To further aid the intent code in determining the best action to take? Or will
 	//that create more confusion, since any whatami can be added at any time, and
@@ -530,43 +545,150 @@ var getDevicesByName = function(deviceName, groupID) {
 	//with device-specific stuff that isn't as easy to assume? 60/40 in favor of
 	//providing the whatami data... Just in case...
     var self = this;
+	var devices = [];
 
-    deviceName = deviceName.toLowerCase().trim();
+	if (!isEmpty(device_names)) {
+		console.log('device_names is not empty: ' + JSON.stringify(device_names));
+		//clean up device_names array members - make sure they're lower case & trimmed
 
-    for(var whatami in self.active_things) {
-        for (var whoami in self.active_things[whatami]) {
-            if (self.active_things[whatami][whoami]['name'].toLowerCase().trim() == deviceName) {
-                return whoami;
-            }
-        }
-    }
+		//console.log('typeof ' + typeof device_names);
 
-    return false;
+		if( typeof device_names !== 'array' ) {
+		    device_names = [ device_names.toLowerCase().trim() ];
+		} else {
+			for (var key in device_names) {
+			    device_names[key] = device_names[key].toLowerCase().trim();
+			}
+		}
+
+		//console.log(device_names.indexOf('asfd'));
+		
+		//gather devices that fit the bill
+    	for(var whatami in self.active_things) {
+        	for (var whoami in self.active_things[whatami]) {
+				console.log("device name match? " + 
+				device_names.indexOf(self.active_things[whatami][whoami]['name'].toLowerCase().trim()));
+            	if (device_names.indexOf(self.active_things[whatami][whoami]['name'].toLowerCase().trim()) > -1) {
+                	 devices.push({'whatami':whatami,'id':whoami});
+        	    }
+    	    }
+	    }
+	} else if (!isEmpty(actions) || !isEmpty(parameters)) { //Time to try to infer if we can
+		//###This currently checks based on group members. 
+	    var options = [];
+    	var remaining = [];
+
+	    console.log("Inferring Devices using actions/parameters - Begin");
+    	console.log("Group ID: " + group_id);
+
+	    var group = getGroup(group_id);
+		//###TODO - This needs to be an if statement, not a kill switch. We can still try to assume things
+		//without a group id... What if it's the only Thing in the house? (like a Thermostat)
+    	if (group != false) { //If there IS a group, narrow down by group
+    		options = group['members'];
+		} else {
+			//If there is NOT a group, use all devices 
+			//console.log("Actors: " + JSON.stringify(self.active_things, null,4));
+			for (var whatami in self.active_things) {
+				for (var whoami in self.active_things[whatami]) {
+					options.push(whoami);
+				}
+			}
+		}
+		console.log("Available Device IDs: " + JSON.stringify(options,null,4));
+
+		//Make sure actions & parameters are in arrays
+        if (!Array.isArray(actions)) actions = [ actions ];
+        if (!Array.isArray(parameters)) parameters = [ parameters ];
+
+    	//Narrow down by actions & parameters
+	    for(var i=0; i<options.length; i++) {
+    	    var hasAll = true;
+      	    for(var x=0; x<actions.length; x++) {
+   	            //We need to check if this device has all of the actions in this array
+                hasAll = hasAll && self.deviceHasAction(options[i], actions[x]);
+               	console.log("Action - " + actions[x] + " -- hasAll: " + hasAll);
+           	}
+            for(var x=0; x<parameters.length; x++) {
+               	hasAll = hasAll && self.deviceHasParameter(options[i], parameters[x]);
+           	    console.log("Parameter - " + parameters[x] + " -- hasAll: " + hasAll);
+       	    }
+	        if (hasAll)  {
+            	//If the device has all the actions we need, keep it
+        	    remaining.push(options[i]);
+    	    }
+	    }
+
+    	//Do we have just one yet?
+	    if (remaining.length == 0) {
+    	    console.log("nothing remaining");
+	        return false;
+    	} else {
+	        console.log("Devices found: " + remaining);
+        	//If there's only one, return the first element in the array, it's our only device ID
+    	    return remaining;
+	    }
+
+    	//If we're still here, remaining has more than one member
+	    //###TODO-language: When integrating other languages into code, don't forget this call!
+    	//Is reference plural?
+	    var language = require('smart-plurals').plurals.getRule('en');
+    	if (language(reference,[false, true])) {
+	        //###Todo - If plural, create group & return group ID?
+        	console.log("is plural");
+	    } else {
+    	    //If not plural, check for similarities between names & reference
+        	console.log("not plural");
+    	}
+
+	    //If one Thing left, return ID
+    	//If more than one, throw error
+	
+
+	}
+
+
+
+	//############ Need to check vs location now, before we return the devices
+
+
+
+
+
+
+	if (!isEmpty(devices)) return devices;
+	else return false;
 }
-module.exports.getDevicesByName = getDevicesByName;
+module.exports.getDevices = getDevices;
 
-var deviceHasAction = function (deviceID, action) {
-    for (var whatami in this.active_things) {
-        if (!isEmpty(this.active_things[whatami][deviceID])) {
-            return (this.actors[whatami]['perform'].indexOf(action) >= 0)
-        }
+var deviceHasAction = function (device_id, action) {
+	var whatami = getWhatAmI(device_id);
+	console.log("whatami: " + whatami + " -- device_id " + device_id);
+    if (!isEmpty(whatami)) {
+		console.log('Inside whatami');
+		if (!isEmpty(this.actors[whatami]['perform'])) {
+			console.log('Has perform section: ' + JSON.stringify(this.actors[whatami],null,4));
+	        return (this.actors[whatami]['perform'].indexOf(action) >= 0)
+		}
     }
-        
+       
     return false; //If we get here, we didn't even find the device...
 }
 module.exports.deviceHasAction = deviceHasAction;
 
-var deviceHasParameter = function (deviceID, parameter) {
-    for (var whatami in this.active_things) {
-        if (!isEmpty(this.active_things[whatami][deviceID])) {
-            return (this.actors[whatami]['properties'].indexOf(parameter) >= 0)
-        }
+var deviceHasParameter = function (device_id, parameter) {
+	var whatami = getWhatAmI(device_id);
+
+    if (!isEmpty(whatami)) {
+		if (!isEmpty(this.actors[whatami]['properties'])) {
+	        return !isEmpty(this.actors[whatami]['properties'][parameter]);
+		}
     }
 
     return false; //If we get here, we didn't even find the device...
 }
 module.exports.deviceHasParameter = deviceHasParameter;
-
+/*
 var inferDevices = function(groupID, actions, parameters) {
     var self = this;
     var device = [];
@@ -632,8 +754,8 @@ var inferDevices = function(groupID, actions, parameters) {
     //If one Thing left, return ID
     //If more than one, throw error
 }
-module.exports.getDeviceIDByReference = getDeviceIDByReference;
-
+module.exports.inferDevices = inferDevices;
+*/
 var hasChanged = function(thing, update) {
 	var ret;
 

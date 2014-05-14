@@ -3,14 +3,29 @@ steward = require('./steward');
 steward.init(init_callback);
 
 function init_callback(data) {
-    console.log("Basement Group ID: " + steward.getGroupIDByName('basement'));
-    console.log("Has action: " + steward.deviceHasAction('device/4','asdf'));
+/*    console.log("getGroup basement: " + JSON.stringify(steward.getGroup(null,'basement',null),null,4));
+    console.log("getGroup ID=1: " + JSON.stringify(steward.getGroup(1),null,4));
+    console.log("getGroup ID=group/1: " + JSON.stringify(steward.getGroup('group/1'),null,4));
+    console.log("getGroup device_id=device/9: " + JSON.stringify(steward.getGroup(null,null,'device/9'),null,4));
+	console.log("getDevices('CA600 Wall Dimmer'): " + JSON.stringify(steward.getDevices('CA600 Wall Dimmer'),null,4));
+*/
+	console.log("getDevices(null, null, ['on','off']): " + steward.getDevices(null, null, ['on','off']));
+
+/*
+	console.log("getDevices(null, null, ['on','off'],'level'): " + steward.getDevices(null, null, ['on','off'],'level'));
+	console.log("getDevices(null, null, ['on']): " + steward.getDevices(null, null, ['on']));
+	console.log("getDevices(null, null, 'on'): " + steward.getDevices(null, null, 'on'));
+	console.log("getDevices(null, null, ['on'],['level']): " + steward.getDevices(null, null, ['on'],['level']));
+*/
+
+
+    //console.log("Has action 'asdf': " + steward.deviceHasAction('device/1','asdf'));
 
     //console.log("Groups: " + steward.getGroupIDByName('nothing'));
-    //console.log(steward.createGroup('All Lights','allLights',['device/4','device/14'], function() {}));
+    //console.log(steward.createGroup('Basement','basement',['device/2','device/9','device/10'], function() {}));
 
     //All Lights group includes Dimmer in basement & outlet upstairs
-
+/*
     console.log("------\nExpected: object - possible options for what this device could be");
     console.log("== getDeviceIDByReference: " + steward.getDeviceIDByReference("light",steward.getGroupIDByName('basement'),['on','off']));
     
@@ -31,7 +46,7 @@ function init_callback(data) {
 
     console.log("------\nExpected: false - there is not an outlet in the basement");
     console.log("== getDeviceIDByReference: " + steward.getDeviceIDByReference("outlet",steward.getGroupIDByName('basement'),['on','off'],['level']));
-
+*/
 /*
     steward.deleteGroup(11,function(){});
     steward.deleteGroup(4,function(){});

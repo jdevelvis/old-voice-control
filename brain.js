@@ -1,5 +1,6 @@
 var wit     = require('./wit'),
-    steward = require('./steward')
+    steward = require('./steward'),
+    fs  = require('fs')
 ;
 
 var init = function(callback) {
@@ -21,8 +22,8 @@ var update_callback = function(element) {
 	//Hard coding for now
         switch (element.whatami) {
                 case '/device/sensor/ehma/roomie':
-			console.log(element.info.command);
-			speech_received(element.info.command);
+					console.log(element.info.command);
+					speech_received(element.info.command, element.whoami);
                 break;
         }
 }
@@ -31,26 +32,39 @@ var manage_callback = function(data) {
     console.log(JSON.stringify(data, null, 4));
 }
 
-var speech_received = function(command) {
-    think(command, manage_callback);
+var speech_received = function(command, roomie_id) {
+    think(command, roomie_id, manage_callback);
 }
 
-var think = function(command, callback) {
+var think = function(command, roomie_id, callback) {
     var self = this;
     data = data.toString().toLowerCase();
     console.log(command);
 
-    wit.think(command,function(err, response) { 
+    wit.think(command, function(err, response) { 
         if (!err) {
 	    //Make sure there is an outcome
 	    if (response['outcome']) {
         	var outcome = [];
-	        //Find the intent & parse it
-        	var intent = require('./intents/' + response['outcome']['intent']);
-	        intent.take_action(response, steward, function(status) {
-		    console.log("Status: " + status);
-		    if (callback) callback(status);
-		});
+			var intent_file_name = '/intents/' + response['outcome']['intent'];
+			var intent_path =__dirname + intent_file_name + '.js';
+
+			console.log("Outcome: " + JSON.stringify(response['outcome'],null,4));
+			console.log("exists? " + intent_path + fs.existsSync(intent_path));
+
+			//Does the intent code exist?
+			if (fs.existsSync(intent_path)) {
+		        //Find the intent & parse it
+    	   		var intent = require('.' + intent_file_name);
+			       	intent.takeAction(response, roomie_id, steward, function(status) {
+		    		console.log("Status: " + status);
+				    if (callback) callback(status);
+				});
+			} else {
+				//###TODO: Verbal response noting that EHMA understands the intent, 
+				//but needs updated before she can take action on it
+				console.log('Warning: Intent recognized, but intent logic module not found');
+			}
 	    }
 
         } else {} //### Error Handling Needed Here

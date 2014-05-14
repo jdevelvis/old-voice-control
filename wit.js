@@ -1,7 +1,9 @@
 var https = require('https'),
-    bearer_auth = '7DKBTBCSC7UDTG5T73XOOOU4YOSZC4WI'; //the bearer_auth to the EHMA wit
+    bearer_auth = '7DKBTBCSC7UDTG5T73XOOOU4YOSZC4WI', //the bearer_auth to the EHMA wit
+	version = '20140501';
 
 var think = function(data, callback) {
+	data = data.toLowerCase();
     call_api('message','?q=' + encodeURIComponent(data), callback, 4);
 
     /* /var future = Future.create();
@@ -77,7 +79,7 @@ var call_api = function(endpoint, data, callback, tries) {
         headers: {'Authorization': 'Bearer ' + bearer_auth}
     };
 
-console.log(JSON.stringify(options,null,4));
+	console.log(JSON.stringify(options,null,4));
 
     https.request(options, function(res) {
         var response = '';
