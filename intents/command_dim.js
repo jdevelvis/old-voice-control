@@ -1,69 +1,64 @@
 //Intent intelligence code for command_toggle.js
 
-var util    = require('util'),
+var util = require('util'),
     isEmpty = require('underscore').isEmpty,
-    findDevices = require('./intent.js').findDevices,
-    action = null,
-    parameters = null;
+    findDevices = require('./intent.js').findDevices;
 
 var takeAction = function(data_from_wit, roomie_id, steward, callback) {
     var self = this;
+	var action = null;
+	var level = null;
+	var parameter = null;
+	var commands = [];
 	console.log("Taking Action");
 
     //Find the devices if possible. If it's not possible, can we tell why?
-    devices = findDevices(data_from_wit, roomie_id, steward, ["on","off"], ["level"]);
+    var devices = findDevices(data_from_wit, roomie_id, steward, ["on","off"], ["level"]);
 
-    if (!isNaN(outcome['number'])) { //If the percentage to dim to is available, set it
-        //console.log("Inside isEmpty Number " + outcome['number']);
-        if (data_from_wit['outcome']['entities']['number'] < 1) {
-            action = "off";
-        } else {
-            action = "on";
+	if (!isEmpty(data_from_wit['outcome']['entities']['number'])) {
+	    if (!isNaN(data_from_wit['outcome']['entities']['number']['value'])) { //If the percentage to dim to is available, set it
+			level = data_from_wit['outcome']['entities']['number']['value'];
+        	if (level < 1) {
+            	action = "off";
+	        } else {
+    	        action = "on";
 
-            //Throttle the level to 99%. 100% tends to correspond to 50%. Possible bug in Intermatic dimmer switches?
-            //Need to test 100% with other dimmer switch manufacturers
-	    var level = data_from_wit['outcome']['entities']['number'];
-            if (!isNaN(level) && level > 99) { //Max value = 99 for some reason = 100 pushes it back to the default
-		level = 99;
-	    }
-        }
+        	    //Throttle the level to 99%. 100% tends to correspond to 50%. Possible bug in Intermatic dimmer switches?
+            	//Need to test 100% with other dimmer switch manufacturers
+	            if (level > 99) { //Max value = 99 for some reason = 100 pushes it back to the default
+					level = 99;
+				}
+        	}
+		}
+        parameter = JSON.stringify({level: level});
 
-        parameters = JSON.stringify({ 'level': level });
-    }
+		for (var i in devices) {
+			commands.push({device_id:devices[i].id,action:action,parameter:parameter});
+		}
+	} else {
+		action = "on";
+		//Level isn't present, cut the current value in half to accomplish dimming
+		for (var i in devices) {
+			level = steward.getParameter(devices[i].id,'level');
+			level /= 2;
+//			console.log("device_id: " + devices[i].id + " -- Level/2: " + level);
+			if (level > 0) {
+				parameter = {level:level};
+//				console.log("Adding command: " + JSON.stringify(parameter,null,4));
+	            commands.push({device_id:devices[i].id,action:action,parameter:parameter});
+			} //No else, because if the level is 0, we don't need to worry about dimming it further
+        }		
+	}    
 
-    console.log("command_dim Decision --- Device: " + JSON.stringify(devices,null,4) + ", Location: " + location + ", Action: " + action + " -- Parameters: " + parameters);
+    console.log("command_dim Decision --- Issuing Commands : " + JSON.stringify(commands,null,4));
 
     //Now take action on the data we have - do we need to prompt for more info? Can we do this?
     //Do we need to interact with the speaker?
 
-    
+    for (var i in commands) {
+		steward.perform('1982',commands[i]['device_id'],commands[i]['action'],commands[i]['parameter']);
+	}
 
     callback();
 }
 module.exports.takeAction = takeAction;
-
-var getLocation = function() {
-    return location;
-}
-module.exports.getLocation = getLocation;
-
-var getDeviceID = function() {
-    return device;
-}
-module.exports.getDeviceID = getDeviceID;
-
-var getAction = function() {
-    return action;
-}
-module.exports.getAction = getAction;
-
-var complete = function() {
-    //Return if there is data in 
-    return (!isEmpty(device) && !isEmpty(parameters));
-}
-module.exports.isComplete = complete;
-
-var getParameters = function () {
-    return parameters;
-}
-module.exports.getParameters = getParameters;

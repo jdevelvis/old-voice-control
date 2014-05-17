@@ -20,16 +20,15 @@ var init = function(init_callback, updates_callback, meta_callback) {
 		init_callback = function() {}
 	}
 	if (updates_callback == undefined) {
-		updates_callback = function(data) {}
+		updates_callback = function(data) { console.log("Missing Update Callback Function"); }
 	}
     if (meta_callback == undefined) {
         meta_callback = function(data) {}
     }
 	
-	//Load the actors, active things, then start listening for updates & fire init_callback
+	//Load the actors, active things, then start listening for updates & fire callbacks
     self.actors(function () { 
         self.getThings(function() {
-        	//### Commenting the updates call to help keep websocket overloading away 
             self.updates(updates_callback); 
             self.getMeta(function() {
                 meta_callback();
@@ -55,48 +54,49 @@ var updates = function(callback) {
 
 		//If the message passed in was an actual update, send it back
 		if (!isEmpty(data)) {
-        	var has_changed = false; //Track whether or not there were changed
+			var status_changed = false;
+			var info_changed = false;
+			var now = new Date().getTime();
+
+			console.log(JSON.stringify(data,null,4));
 
  			console.log("Update received!\n" + JSON.stringify(data,null,4) + "\n---");
 
-	        	//Check if anything needs updated, and if so, update it
-	        	var changed = data.every(function(element, index, array) {
-/*
-	        	        console.log("element:", element);
-        	        	console.log("thing:  ", active_things[element.whatami][element.$
-	                	console.log("Equal? " +  (active_things[element.whatami][elemen$
-		                console.log("_.isEqual? " +  _.isEqual(active_things[element.wh$
-*/
-                    if(!isEmpty(self.active_things[element.whatami])) {
-        		        if (!isEqual(self.active_things[element.whatami][element.whoami].status,element.status)) {
-                		        //Status update
-                        		self.active_things[element.whatami][element.whoami].status = element.status;
-		                        console.log("Updated Status");
-
-                	        	has_changed = true;
-	                	}
-	        	        if (!isEqual(self.active_things[element.whatami][element.whoami].info, element.info)) {
-        	        	        //Info Update
-	        	                self.active_things[element.whatami][element.whoami].info = element.info;
-                        		console.log("Updated Info. JSON: " + JSON.stringify(element,null,4) );
-
-        	                	has_changed = true;
-	        	        }
-       				if (has_changed) {
-	                	        //Update the updated property
-        	                	self.active_things[element.whatami][element.whoami].updated = element.updated;
-					console.log("whatami? " + element.whatami + " -- whoami? " + element.whoami);
-
-					callback(element);
-	        	        }
-                    } else {//###Likely meaning here - this device was just added!
-                        console.log(JSON.stringify(element,null,4));
-                    }
-		    });
+        	//Check if anything needs updated, and if so, update it
+        	var changed = data.every(function(element, index, array) {
+				console.log("inside data.every");
+                if(!isEmpty(self.active_things[element.whatami])) {
+					var last_update = new Date(self.active_things[element.whatami][element.whoami].updated);
+					console.log("Time elapsed since last command: " + now - last_update.getTime());
+       		        if (!isEqual(self.active_things[element.whatami][element.whoami].status,element.status) ||
+						(now - self.active_things[element.whatami][element.whoami].updated) > 5000) { //###Is 5 seconds a good amount of time to wait between commands?
+           		        //Status update
+                   		self.active_things[element.whatami][element.whoami].status = element.status;
+                        console.log("Updated Status");
+           	        	status_changed = true;
+                	}
+        	        if (!isEqual(self.active_things[element.whatami][element.whoami].info, element.info) ||
+						(now - self.active_things[element.whatami][element.whoami].updated) > 5000) { //###Is 5 seconds a good amount of time to wait between commands?
+   	        	        //Info Update
+    	                self.active_things[element.whatami][element.whoami].info = element.info;
+                   		console.log("Updated Info. JSON: " + JSON.stringify(element,null,4) );
+      	               	info_changed = true;
+        	        }
+       				if (status_changed || info_changed) {
+               	        //Update the updated property
+   	                	self.active_things[element.whatami][element.whoami].updated = element.updated;
+						console.log("whatami? " + element.whatami + " -- whoami? " + element.whoami);
+						callback(element, status_changed, info_changed);
+					}
+                } else {//###Likely meaning here - this device was just added!
+                   console.log(JSON.stringify(element,null,4));
+                }
+			});
 		}
 	};
 
 	ws.onclose = function(event) {
+		//###TODO: Connection died for some reason. Reopen updates socket?
 		console.log("Socket closed: " + event.wasClean );
 	};
 
@@ -110,33 +110,26 @@ var updates = function(callback) {
 }
 module.exports.updates = updates;
 
-/*var doMagic = function(element) {
-	//###Needs to be modified to be dynamic. Hard coding for now
-	switch (element.whatami) {
-		case '/device/sensor/ehma/roomie':
-			
-		break;
-	}
-}
-*/
-
 var manage = function(requestID, device_path, action, parameter, callback) {
 	var ws = new WebSocket('ws://127.0.0.1:8887/manage');
 	console.log("Created websocket: manage.");
 
 	ws.onopen = function(event) {
 		console.log("Opened websocket to steward: manage..");
-		var json = JSON.stringify({path:device_path, 
+		var json = {path:device_path,
                         requestID : requestID,
-                        perform   : action,
-                	parameter : parameter 
-			});
+                        perform   : action
+            }
+		if (!isEmpty(parameter)) json['parameter'] = JSON.stringify(parameter);
+
+		json = JSON.stringify(json);
         console.log(json);
 		ws.send(json);
 	};
 
 	ws.onmessage = function(event) {
-		callback(JSON.parse(event.data));
+		console.log(JSON.stringify(JSON.parse(event.data),null,4));
+		if (!!callback) callback(JSON.parse(event.data));
 		ws.close();
 	};
 
@@ -262,7 +255,7 @@ var getStatus = function(whoami, whatami) {
 
     if (isEmpty(whatami)) {
         //### Find out whatami based on whoami!
-        whatami = self.getWhatAmIByWhoAmI(whoami);
+        whatami = self.getWhatAmI(whoami);
         if (!isEmpty(whatami)) {
             console.log("JSON as is in getStatus: whatami=" + whatami + "\n" + JSON.stringify(self.active_things[whatami],null,4));
             return self.active_things[whatami][whoami].status;
@@ -281,6 +274,7 @@ var getWhatAmI = function(whoami) {
         if (this.active_things[whatami].hasOwnProperty(whoami)) return whatami;
     }
 }
+module.exports.getWhatAmI = getWhatAmI;
 
 var getMeta = function(callback) {
     var self = this;
@@ -448,62 +442,97 @@ var deleteGroup = function(ID, callback) {
 }
 module.exports.deleteGroup = deleteGroup;
 
-var addDeviceToGroup = function(ID, name, deviceNames, callback) {
+var modifyGroup = function(group_id, group_name, devices, callback) {
     var self = this;
 
     var ws = new WebSocket('ws://127.0.0.1:8887/manage');
-    console.log("Created websocket: addDeviceToGroup.");
+    console.log("Created websocket: modifyGroup.");
 
     ws.onopen = function(event) {
-            console.log("Opened websocket to steward: addDeviceToGroup");
+        console.log("Opened websocket to steward: modifyGroup");
 
-            var json = { path:'/api/v1/group/modify/' + ID,
-                    requestID :'1',
-                    name: name,
-                    members: deviceNames
-            }
+		var group_id_number = group_id.split('/')[1];
 
-            console.log('>>>' + JSON.stringify(json,null,4) + '<<<');
-            ws.send(JSON.stringify(json,null,4));
+   	    var json = { path:'/api/v1/group/modify/' + group_id_number,
+                requestID :'1'
+        }
+		if (!isEmpty(group_name)) {
+			json['name'] = group_name;
+		}
+		if (!isEmpty(devices)) {
+			json['members'] = devices;
+		}
+
+        console.log('>>>' + JSON.stringify(json,null,4) + '<<<');
+   	    ws.send(JSON.stringify(json,null,4));
     };
 
     ws.onmessage = function(event) {
-            var json_data = JSON.parse(event.data);
-            console.log(JSON.stringify(json_data,null,4));
-            callback();
-            ws.close();
+        var json_data = JSON.parse(event.data);
+        console.log("Message Returned: " + JSON.stringify(json_data,null,4));
+        if (callback) callback();
+		ws.close();
     };
 
     ws.onclose = function(event) {
-            console.log("addDeviceToGroup Socket closed: " + event.wasClean );
+        console.log("modifyGroup Socket closed: " + event.wasClean );
     };
 
     ws.onerror = function(event) {
-            console.log("addDeviceToGroup Socket error: " + util.inspect(event, {depth: null}));
-            try {
-                ws.close();
-                console.log("Closed websocket: addDeviceToGroup..");
-            } catch (ex) {}
+        console.log("modifyGroup Socket error: " + util.inspect(event, {depth: null}));
+        try {
+            ws.close();
+            console.log("Closed websocket: modifyGroup..");
+        } catch (ex) {}
     };
+
+}
+module.exports.modifyGroup = modifyGroup;
+
+var addDeviceToGroup = function(group_id, device_id, callback) {
+	var self = this;
+	var group = self.getGroup(group_id);
+
+	if (!isEmpty(group)) {
+		if (!self.deviceExistsInGroup(group_id, device_id)) {
+			group['members'].push(device_id);
+			self.modifyGroup(group_id,null,group['members'],callback);
+		}
+	}
 
 }
 module.exports.addDeviceToGroup = addDeviceToGroup;
 
-var deviceExistsInGroup = function(deviceID, groupID) {
+var removeDeviceFromGroup = function(group_id, device_id, callback) {
+	var self = this;
+    var group = self.getGroup(group_id);
+
+    if (!isEmpty(group)) {
+        if (self.deviceExistsInGroup(group_id, device_id)) {
+			array = group['members'];
+			for(var i = array.length - 1; i >= 0; i--) {
+			    if(array[i] === device_id) {
+					array.splice(i, 1);
+					break;
+			    }
+			}
+            self.modifyGroup(group_id,null,array,callback);
+        }
+    }
+
+}
+module.exports.removeDeviceFromGroup = removeDeviceFromGroup;
+
+var deviceExistsInGroup = function(group_id, device_id) {
     var self = this;
 
-    var group = self.getGroup(groupID);
+    var group = self.getGroup(group_id);
 
     if (isEmpty(group)) return false; //No group? No use executing the rest
 
     //console.log("Found group: " + JSON.stringify(group,null,4));
 
-    for(var key in group['members']) {
-        if(group['members'][key] == deviceID) return true;
-    }
-
-    //If we get here, it doesn't exist
-    return false;
+    return (group['members'].indexOf(device_id) > -1);
 }
 module.exports.deviceExistsInGroup = deviceExistsInGroup;
 
@@ -537,7 +566,7 @@ var deviceExists = function(deviceID) {
 }
 module.exports.deviceExists = deviceExists;
 
-var getDevices = function(device_names, group_id, actions, parameters) {
+var getDeviceList = function(device_names, group_id, actions, parameters) {
 	//###TODO - Should this be replaced by a function that returns whatami AND whoami?
 	//To further aid the intent code in determining the best action to take? Or will
 	//that create more confusion, since any whatami can be added at any time, and
@@ -547,8 +576,8 @@ var getDevices = function(device_names, group_id, actions, parameters) {
     var self = this;
 	var devices = [];
 
-	if (!isEmpty(device_names)) {
-		console.log('device_names is not empty: ' + JSON.stringify(device_names));
+	if (!isEmpty(device_names)) { //We're looking for specific device names
+//		console.log('device_names is not empty: ' + JSON.stringify(device_names));
 		//clean up device_names array members - make sure they're lower case & trimmed
 
 		//console.log('typeof ' + typeof device_names);
@@ -566,8 +595,8 @@ var getDevices = function(device_names, group_id, actions, parameters) {
 		//gather devices that fit the bill
     	for(var whatami in self.active_things) {
         	for (var whoami in self.active_things[whatami]) {
-				console.log("device name match? " + 
-				device_names.indexOf(self.active_things[whatami][whoami]['name'].toLowerCase().trim()));
+//				console.log("device name match? " + 
+//				device_names.indexOf(self.active_things[whatami][whoami]['name'].toLowerCase().trim()));
             	if (device_names.indexOf(self.active_things[whatami][whoami]['name'].toLowerCase().trim()) > -1) {
                 	 devices.push({'whatami':whatami,'id':whoami});
         	    }
@@ -578,13 +607,15 @@ var getDevices = function(device_names, group_id, actions, parameters) {
 	    var options = [];
     	var remaining = [];
 
-	    console.log("Inferring Devices using actions/parameters - Begin");
-    	console.log("Group ID: " + group_id);
+//	    console.log("Inferring Devices using actions/parameters - Begin");
+//    	console.log("Group ID: " + group_id);
 
-	    var group = getGroup(group_id);
+	    var group = self.getGroup(group_id);
 		//###TODO - This needs to be an if statement, not a kill switch. We can still try to assume things
 		//without a group id... What if it's the only Thing in the house? (like a Thermostat)
+		console.log("Group: " + JSON.stringify(group,null,4));
     	if (group != false) { //If there IS a group, narrow down by group
+			console.log('Group Members: ' + JSON.stringify(group['members'],null,4));
     		options = group['members'];
 		} else {
 			//If there is NOT a group, use all devices 
@@ -595,40 +626,45 @@ var getDevices = function(device_names, group_id, actions, parameters) {
 				}
 			}
 		}
-		console.log("Available Device IDs: " + JSON.stringify(options,null,4));
+//		console.log("Available Device IDs: " + JSON.stringify(options,null,4));
 
 		//Make sure actions & parameters are in arrays
-        if (!Array.isArray(actions)) actions = [ actions ];
-        if (!Array.isArray(parameters)) parameters = [ parameters ];
+        if (!isEmpty(actions) && !Array.isArray(actions)) actions = [ actions ];
+        if (!isEmpty(parameters) && !Array.isArray(parameters)) parameters = [ parameters ];
+
+//		console.log("Parameters: " + JSON.stringify(parameters));
 
     	//Narrow down by actions & parameters
 	    for(var i=0; i<options.length; i++) {
+//			console.log("================ Device: " + options[i] + "================");
     	    var hasAll = true;
-      	    for(var x=0; x<actions.length; x++) {
-   	            //We need to check if this device has all of the actions in this array
-                hasAll = hasAll && self.deviceHasAction(options[i], actions[x]);
-               	console.log("Action - " + actions[x] + " -- hasAll: " + hasAll);
-           	}
-            for(var x=0; x<parameters.length; x++) {
-               	hasAll = hasAll && self.deviceHasParameter(options[i], parameters[x]);
-           	    console.log("Parameter - " + parameters[x] + " -- hasAll: " + hasAll);
-       	    }
+			if (!isEmpty(actions)) {
+	      	    for(var x=0; x<actions.length; x++) {
+   		            //We need to check if this device has all of the actions in this array
+        	        hasAll = hasAll && self.deviceHasAction(options[i], actions[x]);
+//            	   	console.log("Action - " + actions[x] + " -- Device Has Action: " + self.deviceHasAction(options[i], actions[x]) + " -- hasAll: " + hasAll);
+	           	}
+			}
+			if (!isEmpty(parameters)) {
+	            for(var x=0; x<parameters.length; x++) {
+    	           	hasAll = hasAll && self.deviceHasParameter(options[i], parameters[x]);
+//        	   	    console.log("Parameter - " + parameters[x] + " -- hasAll: " + hasAll);
+       	    	}
+			}
 	        if (hasAll)  {
             	//If the device has all the actions we need, keep it
         	    remaining.push(options[i]);
     	    }
 	    }
 
-    	//Do we have just one yet?
-	    if (remaining.length == 0) {
-    	    console.log("nothing remaining");
-	        return false;
-    	} else {
-	        console.log("Devices found: " + remaining);
-        	//If there's only one, return the first element in the array, it's our only device ID
-    	    return remaining;
-	    }
+		//Add whatami to list and set to devices var for return
+		for (var i in remaining) {
+			devices.push({'whatami':self.getWhatAmI(remaining[i]),'id':remaining[i]});
+		}
 
+		/*############### - Should this be moved to beginning to strip out plurals since
+		//					our search is for singles? YES
+		//###############
     	//If we're still here, remaining has more than one member
 	    //###TODO-language: When integrating other languages into code, don't forget this call!
     	//Is reference plural?
@@ -640,35 +676,24 @@ var getDevices = function(device_names, group_id, actions, parameters) {
     	    //If not plural, check for similarities between names & reference
         	console.log("not plural");
     	}
-
-	    //If one Thing left, return ID
-    	//If more than one, throw error
-	
-
+		*/
 	}
-
-
-
-	//############ Need to check vs location now, before we return the devices
-
-
-
-
-
 
 	if (!isEmpty(devices)) return devices;
 	else return false;
 }
-module.exports.getDevices = getDevices;
+module.exports.getDeviceList = getDeviceList;
 
 var deviceHasAction = function (device_id, action) {
-	var whatami = getWhatAmI(device_id);
-	console.log("whatami: " + whatami + " -- device_id " + device_id);
+	var self = this;
+
+	var whatami = self.getWhatAmI(device_id);
+//	console.log("whatami: " + whatami + " -- device_id " + device_id);
     if (!isEmpty(whatami)) {
-		console.log('Inside whatami');
-		if (!isEmpty(this.actors[whatami]['perform'])) {
-			console.log('Has perform section: ' + JSON.stringify(this.actors[whatami],null,4));
-	        return (this.actors[whatami]['perform'].indexOf(action) >= 0)
+//		console.log('Inside whatami');
+		if (!isEmpty(self.actors[whatami]['perform'])) {
+//			console.log('Has perform section: ' + (self.actors[whatami]['perform'].indexOf(action) >= 0));
+	        return (self.actors[whatami]['perform'].indexOf(action) >= 0)
 		}
     }
        
@@ -677,7 +702,9 @@ var deviceHasAction = function (device_id, action) {
 module.exports.deviceHasAction = deviceHasAction;
 
 var deviceHasParameter = function (device_id, parameter) {
-	var whatami = getWhatAmI(device_id);
+	var self = this;
+
+	var whatami = self.getWhatAmI(device_id);
 
     if (!isEmpty(whatami)) {
 		if (!isEmpty(this.actors[whatami]['properties'])) {
@@ -685,9 +712,52 @@ var deviceHasParameter = function (device_id, parameter) {
 		}
     }
 
-    return false; //If we get here, we didn't even find the device...
+     return false; //If we get here, we didn't even find the device...
 }
 module.exports.deviceHasParameter = deviceHasParameter;
+
+var getDeviceObject = function(device_id) {
+	var self = this;
+
+	///console.log("active things: " + JSON.stringify(self.active_things,null,4));
+
+	for (var i in self.active_things) {
+		for (var whoami in self.active_things[i]) {
+			if (whoami == device_id) { //Found it!
+				return self.active_things[i][whoami];
+			}
+		}
+	}
+	//If we get here, we didn't find the device
+	return false;
+}
+module.exports.getDeviceObject = getDeviceObject;
+
+var getParameter = function(device_id, parameter) {
+	var self = this;
+
+	//###Should this loop be put into a separate function called getDevice that returns
+	//   the device object?
+
+	var device = self.getDeviceObject(device_id);
+
+
+	console.log("Device: " + JSON.stringify(device,null,4));
+	console.log("Info: " + JSON.stringify(device['info'],null,4));
+	console.log(parameter + ": " + JSON.stringify(device['info'][parameter],null,4));
+
+	if (!isEmpty(device['info']) && !isNaN(device['info'][parameter])) {
+		console.log("returning: " + device['info'][parameter]);
+		return device['info'][parameter];
+	} else {
+		return false;
+	}
+
+	//If we get here, we didn't find the parameter
+	return false;
+}
+module.exports.getParameter = getParameter;
+
 /*
 var inferDevices = function(groupID, actions, parameters) {
     var self = this;

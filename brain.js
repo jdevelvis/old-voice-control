@@ -1,6 +1,7 @@
 var wit     = require('./wit'),
     steward = require('./steward'),
-    fs  = require('fs')
+    fs  = require('fs'),
+	isEmpty = require('underscore').isEmpty;
 ;
 
 var init = function(callback) {
@@ -17,13 +18,16 @@ var init_callback = function(data) {
 var update_callback = function(element) {
 	console.log (">> Update received for: " + JSON.stringify(element,null,4));
 
-	//Check if there's a magic event associated with this update
+		//Check if there's a magic event associated with this update
+
         //###Todo - Needs to be modified to be dynamic (maybe similar to intent structure)
-	//Hard coding for now
+		//Hard coding for now
         switch (element.whatami) {
                 case '/device/sensor/ehma/roomie':
-					console.log(element.info.command);
-					speech_received(element.info.command, element.whoami);
+					if (!isEmpty(element.info.command.trim())) {
+						console.log("Speech Received: " + element.info.command.trim());
+						think(element.info.command.trim(), element.whoami, manage_callback);
+					}
                 break;
         }
 }
@@ -32,42 +36,39 @@ var manage_callback = function(data) {
     console.log(JSON.stringify(data, null, 4));
 }
 
-var speech_received = function(command, roomie_id) {
-    think(command, roomie_id, manage_callback);
-}
-
 var think = function(command, roomie_id, callback) {
     var self = this;
-    data = data.toString().toLowerCase();
-    console.log(command);
+
+    command = command.toString().toLowerCase();
+    console.log("Thinking... Command: " + command);
 
     wit.think(command, function(err, response) { 
+		console.log("Thought recieved: " + JSON.stringify(response,null,4));
         if (!err) {
-	    //Make sure there is an outcome
-	    if (response['outcome']) {
-        	var outcome = [];
-			var intent_file_name = '/intents/' + response['outcome']['intent'];
-			var intent_path =__dirname + intent_file_name + '.js';
+		    //Make sure there is an outcome
+		    if (response['outcome']) {
+        		var outcome = [];
+				var intent_file_name = '/intents/' + response['outcome']['intent'];
+				var intent_path =__dirname + intent_file_name + '.js';
+	
+				console.log("Outcome: " + JSON.stringify(response['outcome'],null,4));
+				console.log("exists? " + intent_path + fs.existsSync(intent_path));
 
-			console.log("Outcome: " + JSON.stringify(response['outcome'],null,4));
-			console.log("exists? " + intent_path + fs.existsSync(intent_path));
-
-			//Does the intent code exist?
-			if (fs.existsSync(intent_path)) {
-		        //Find the intent & parse it
-    	   		var intent = require('.' + intent_file_name);
-			       	intent.takeAction(response, roomie_id, steward, function(status) {
-		    		console.log("Status: " + status);
-				    if (callback) callback(status);
-				});
-			} else {
-				//###TODO: Verbal response noting that EHMA understands the intent, 
-				//but needs updated before she can take action on it
-				console.log('Warning: Intent recognized, but intent logic module not found');
-			}
-	    }
-
-        } else {} //### Error Handling Needed Here
+				//Does the intent code exist?
+				if (fs.existsSync(intent_path)) {
+			        //Find the intent & parse it
+    		   		var intent = require('.' + intent_file_name);
+				       	intent.takeAction(response, roomie_id, steward, function(status) {
+		    			console.log("Status: " + status);
+				    	if (callback) callback(status);
+					});
+				} else {
+					//###TODO: Verbal response noting that EHMA understands the intent, 
+					//but needs updated before she can take action on it
+					console.log('Warning: Intent recognized, but intent logic module not found');
+				}
+		    }
+        } else {} //###TODO: Error Handling Needed Here
     });
 }
 

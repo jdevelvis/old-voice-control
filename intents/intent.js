@@ -2,6 +2,9 @@
 Intent base code 
 ***/
 
+//###Todo:
+//Query code - need to ask if we're missing data we can't assume
+
 var util    = require('util'),
     isEmpty = require('underscore').isEmpty,
     location = null,
@@ -36,7 +39,7 @@ var findDevices = exports.findDevices = function(data_from_wit, roomie_id, stewa
     if (isEmpty(location)) { //No location, either we couldn't find one, or one wasn't provided
         //###TODO - Rooms: Upon adding group functionality, track this node's room
         //         and use it here when necessary
-		console.log("Looking up location by roomie. roomie_id=" roomie_id);
+		console.log("Looking up location by roomie. roomie_id=" + roomie_id);
 		group = steward.getGroup(null,null,roomie_id);
         if (group != false) {
             location = group.id;
@@ -47,14 +50,14 @@ var findDevices = exports.findDevices = function(data_from_wit, roomie_id, stewa
 	//Did the response come with a device indicated?
     if (!isEmpty(outcome['device'])) {
         //Great, lets see if we can find the device ID
-        devices = steward.getDevices(outcome['device'], location);
+        devices = steward.getDeviceList(outcome['device'], location);
     }
 
 	//Did we find it?
     if (isEmpty(devices) || devices == false) { //We didn't find it, try to infer it
         //###TODO: Can we infer the actual device name based on the intent, location & action (if present)?
         //          What if it's a group name they're referencing? (IE - 'lights')
-        devices = steward.inferDevices(location, actions, parameters);
+        devices = steward.getDeviceList(null,location, actions, parameters);
         console.log("DeviceIDs By Reference: " + JSON.stringify(devices,null,4));
 //        devices = "device/14";
         devices_assumed = true;
@@ -65,10 +68,9 @@ var findDevices = exports.findDevices = function(data_from_wit, roomie_id, stewa
         //specific light in a room - check how many on_off devices there are, if any have "light"
         //in their name, etc, to see if you can make a good guess. If not, prompt for the answer
         
-        console.log("Device Exists? " + steward.deviceExists(outcome['device']));
-
         //Does the device exist?
-        if (steward.deviceExists(outcome['device'])) {
+		
+/*        if (steward.deviceExists(outcome['device'])) {
             //Does it exist in the given location?
             if (steward.deviceExistsInGroup(outcome['device'],location)) {
                 //Win! Use it.
@@ -88,7 +90,12 @@ var findDevices = exports.findDevices = function(data_from_wit, roomie_id, stewa
             devices = "device/14";
             devices_assumed = true;
         }
+*/
     }
+
+	//###TODO: Does it matter if the device or location was assumed? Do I need to pass that along?
+
+	return devices;
 
     console.log("command_dim Decision --- Device: " + device + ", Location: " + location);
 }

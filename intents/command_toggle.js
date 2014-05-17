@@ -2,136 +2,40 @@
 
 var util    = require('util'),
     isEmpty = require('underscore').isEmpty,
-    location = null,
-    device = null,
-    action = null,
-    parameters = null,
-    location_assumed = false,
-    device_assumed = false,
-    action_assumed = false;
+    findDevices = require('./intent.js').findDevices;
 
-var parse = function(data, steward, callback, final_callback, dispose) {
+var takeAction = function(data_from_wit, roomie_id, steward, callback) {
     var self = this;
-    var outcome = [];
+	var on_off = null;
+	var commands = [];
+	console.log("Taking Action on: " + JSON.stringify(data_from_wit,null,4));
 
-    for(var attributeName in data['outcome']['entities']){
-        console.log(attributeName+": "+data['outcome']['entities'][attributeName]['value']);
-        outcome[attributeName] = data['outcome']['entities'][attributeName]['value'];
-    }
+	if (!isEmpty(data_from_wit['outcome']['entities']['on_off'])) {
+		on_off = data_from_wit['outcome']['entities']['on_off']['value'];
+	}
 
-    console.log(outcome.toString());
+	if (isEmpty(on_off)) {
+		//###TODO - Prompt for on or off here? Or before we take action, below?
+	}
 
-    //Can we make an assumption to determine unpresent values?
-    if (!isEmpty(outcome['location'])) {
-        //Great, lets see if we can find the group
-        location = steward.getGroupByName(outcome['location']);
-    }
+    //Find the devices if possible. If it's not possible, can we tell why?
+    devices = findDevices(data_from_wit, roomie_id, steward, ["on","off"]);
 
-    if (isEmpty(location)) { //No location, either we couldn't find one, or one wasn't provided
-        //###TODO - Rooms: Upon adding group functionality, track this node's room
-        //         and use it here when necessary
-        location = "group/1";
-        location_assumed = true;
-    }
+	for (var i in devices) {
+		commands.push({device_id:devices[i].id,action:on_off});
+	}
 
-    if (!isEmpty(outcome['device'])) {
-        //Great, lets see if we can find the device ID
-        device = steward.getDeviceIDByName(outcome['device']);
-    }
+    console.log("command_toggle Decision --- Issuing Commands: " + JSON.stringify(commands,null,4));
 
-    if (isEmpty(device)) {
-        //###TODO: Can we infer the actual device name based on the intent, location & action (if present)?
-        //          What if it's a group name they're referencing? (IE - 'lights')
-        device = "device/7";
-        device_assumed = true;
-    } else {
-        //###TODO: Verify the subject is actually a valid device! "Turn on the light" probably won't 
-        //work without some thought behind what "light" actually means
-        //"Lights" is a better subject to make assumptions on - "light" could mean any one
-        //specific light in a room - check how many on_off devices there are, if any have "light"
-        //in their name, etc, to see if you can make a good guess. If not, prompt for the answer
-        
-        console.log("Device Exists? " + steward.deviceExists(outcome['device']));
+    //Now take action on the data we have - do we need to prompt for more info? Can we do this?
+    //Do we need to interact with the speaker?
 
-        //Does the device exist?
-        if (steward.deviceExists(outcome['device'])) {
-            //Does it exist in the given location?
-            if (steward.deviceExistsInGroup(outcome['device'],location)) {
-                //Win! Use it.
-                device = outcome['device'];
-            } else {
-                //###TODO: Is there only one of this type of device? If so, use it if we assumed
-                //the location. 
-                    //If we didn't assume the location prompt because the user gave us a specific location.
-                //If there is more than one device of this type/name, prompt for more info
+	var request_id = 1983;
+	for (var i in commands) {
+		steward.perform(request_id,commands[i]['device_id'],commands[i]['action'],null);
+		request_id++;
+	}
 
-                device = "device/7";
-                device_assumed = true;                    
-            }
-        } else {
-            //Device Not Found - can we use what we have to make an assumption?
-            //###TODO: Use data available to make assumptions? (device name, action, location)
-            device = "device/7";
-            device_assumed = true;
-        }
-    }
-
-    if (isEmpty(outcome['on_off'])) {
-        //###TODO: Can we infer the action based on intent, subject and/or location?
-        //IE - "flip the light" etc
-
-        //When in doubt, toggle the device's status
-        if (steward.get_status(device) == "off") {
-            action = "on";
-        } else {
-            action = "off";
-        }
-        action_assumed = true;
-    } else {
-        //Does the action exist for this device?
-        if(steward.actionExists(device,outcome["on_off"])) {
-            //Great! Use it.
-            action = outcome["on_off"];
-        } else {
-            //The action doesn't exist, just toggle the device
-            if (steward.get_status(device) == "off") {
-                action = "on";
-            } else {
-                action = "off";
-            }
-            action_assumed = true;            
-        }
-    }
-
-    console.log("command_toggle Decision --- Device: " + device + ", Location: " + location + ", Action: " + action);
-
-    callback(this, final_callback, dispose);
+    callback();
 }
-module.exports.parse = parse;
-
-var getLocation = function() {
-    return location;
-}
-module.exports.getLocation = getLocation;
-
-var getDeviceID = function() {
-    return device;
-}
-module.exports.getDeviceID = getDeviceID;
-
-var getAction = function() {
-    return action;
-}
-module.exports.getAction = getAction;
-
-var complete = function() {
-    //Return if there is data in 
-    return (!isEmpty(device) && !isEmpty(action));
-}
-module.exports.isComplete = complete;
-
-var getParameters = function () {
-    //parameters are always null for on/off commands, but other devices may have them
-    return parameters;
-}
-module.exports.getParameters = getParameters;
+module.exports.takeAction = takeAction;
