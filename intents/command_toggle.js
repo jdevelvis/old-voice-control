@@ -10,8 +10,8 @@ var takeAction = function(data_from_wit, roomie_id, steward, callback) {
 	var commands = [];
 	console.log("Taking Action on: " + JSON.stringify(data_from_wit,null,4));
 
-	if (!isEmpty(data_from_wit['outcome']['entities']['on_off'])) {
-		on_off = data_from_wit['outcome']['entities']['on_off']['value'];
+	if (!isEmpty(data_from_wit['outcomes'][0]['entities']['on_off'])) {
+		on_off = data_from_wit['outcomes'][0]['entities']['on_off'][0]['value'];
 	}
 
 	if (isEmpty(on_off)) {
@@ -22,7 +22,12 @@ var takeAction = function(data_from_wit, roomie_id, steward, callback) {
     devices = findDevices(data_from_wit, roomie_id, steward, ["on","off"]);
 
 	for (var i in devices) {
-		commands.push({device_id:devices[i].id,action:on_off});
+//		var level = 0;
+//		if (on_off == 'on') level = 99;
+
+//		var parameter = JSON.stringify({level: level});
+
+		commands.push({device_id:devices[i].id,action:on_off});//, parameter:parameter});
 	}
 
     console.log("command_toggle Decision --- Issuing Commands: " + JSON.stringify(commands,null,4));
@@ -32,7 +37,7 @@ var takeAction = function(data_from_wit, roomie_id, steward, callback) {
 
 	var request_id = 1983;
 	for (var i in commands) {
-		steward.perform(request_id,commands[i]['device_id'],commands[i]['action'],null);
+		steward.perform(request_id,commands[i]['device_id'],commands[i]['action'],commands[i]['level']);
 		request_id++;
 	}
 

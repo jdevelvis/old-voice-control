@@ -76,7 +76,11 @@ var call_api = function(endpoint, data, callback, tries) {
     var options = {
         host: 'api.wit.ai',
         path: '/' + endpoint + data, //?q=' + encodeURIComponent(data),
-        headers: {'Authorization': 'Bearer ' + bearer_auth}
+        headers: {
+			'Authorization': 'Bearer ' + bearer_auth,
+			'Accept': 'application/vnd.wit/20140802' //Use API version prior to this date
+		}
+
     };
 
 	console.log(JSON.stringify(options,null,4));

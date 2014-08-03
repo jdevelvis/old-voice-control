@@ -39,6 +39,7 @@ var init = function(init_callback, updates_callback, meta_callback) {
 }
 module.exports.init = init;
 
+//###TODO - Set Websockets to wss:// & do TOTP connections
 var updates = function(callback) {
 	var self = this;
 
@@ -58,14 +59,17 @@ var updates = function(callback) {
 			var info_changed = false;
 			var now = new Date().getTime();
 
-			console.log(JSON.stringify(data,null,4));
+//			console.log(JSON.stringify(data,null,4));
 
- 			console.log("Update received!\n" + JSON.stringify(data,null,4) + "\n---");
+// 			console.log("Update received!\n" + JSON.stringify(data,null,4) + "\n---");
 
         	//Check if anything needs updated, and if so, update it
         	var changed = data.every(function(element, index, array) {
 				console.log("inside data.every");
-                if(!isEmpty(self.active_things[element.whatami])) {
+                if(!isEmpty(self.active_things[element.whatami]) && !isEmpty(self.active_things[element.whatami][element.whoami])) {
+					console.log("self.active_things[element.whatami] is not empty:");
+					console.log(JSON.stringify(self.active_things[element.whatami],null,4));
+					console.log("Whoami? " + element.whoami);
 					var last_update = new Date(self.active_things[element.whatami][element.whoami].updated);
 					console.log("Time elapsed since last command: " + now - last_update.getTime());
        		        if (!isEqual(self.active_things[element.whatami][element.whoami].status,element.status) ||
@@ -79,7 +83,7 @@ var updates = function(callback) {
 						(now - self.active_things[element.whatami][element.whoami].updated) > 5000) { //###Is 5 seconds a good amount of time to wait between commands?
    	        	        //Info Update
     	                self.active_things[element.whatami][element.whoami].info = element.info;
-                   		console.log("Updated Info. JSON: " + JSON.stringify(element,null,4) );
+                   		console.log("Updated Info");// JSON: " + JSON.stringify(element,null,4) );
       	               	info_changed = true;
         	        }
        				if (status_changed || info_changed) {
@@ -89,7 +93,20 @@ var updates = function(callback) {
 						callback(element, status_changed, info_changed);
 					}
                 } else {//###Likely meaning here - this device was just added!
-                   console.log(JSON.stringify(element,null,4));
+					console.log("Device " + element.whoami + " not found in DB - adding it");
+//                    console.log(JSON.stringify(element,null,4));
+//					console.log("Active Things:");
+//					console.log(JSON.stringify(self.active_things,null,4));
+
+					var thing = {
+						name: element.name,
+						status: element.status,
+						info: element.info,
+						updated: element.updated
+					}
+
+					if (isEmpty(self.active_things[element.whatami])) self.active_things[element.whatami] = {};
+					self.active_things[element.whatami][element.whoami] = thing;
                 }
 			});
 		}
@@ -320,10 +337,16 @@ var getGroup = function(group_id, group_name, device_id) {
     var self = this;
     if (isEmpty(self.groups)) return false;
 
+	console.log("In getGroup: " + group_id);
+
 	if (!isEmpty(group_id)) {
+//		console.log("group_id not empty: " + group_id);
+//		console.log("Groups:" + JSON.stringify(self.groups,null,4));
 		if (!isEmpty(self.groups[group_id])) {
+//			console.log("self.groups not empty");
 			group = self.groups[group_id];
 			group['id'] = group_id;
+//			console.log("returning Group with ID: " + group_id);
 			return group;
 		}
 	} 
@@ -332,6 +355,8 @@ var getGroup = function(group_id, group_name, device_id) {
 	if (!isEmpty(group_name)) {
 		 //ignore case, remove any trailing or leading spaces
 	    group_name = group_name.toLowerCase().trim();
+
+		console.log(JSON.stringify(self.groups,null,4));
 
     	for(var gid in self.groups) {
         	console.log(gid+": "+self.groups[gid].name);
@@ -347,7 +372,7 @@ var getGroup = function(group_id, group_name, device_id) {
 	//If we get here, we couldn't find group by id or name
 	if (!isEmpty(device_id)) { //Find by device_id
 	    for(var gid in self.groups) {
-			//console.log(gid+": "+self.groups[gid].name);
+			console.log(gid+": "+self.groups[gid].name);
 	        var group = self.groups[gid];
 
         	for(var key in group['members']) {
@@ -523,14 +548,15 @@ var removeDeviceFromGroup = function(group_id, device_id, callback) {
 }
 module.exports.removeDeviceFromGroup = removeDeviceFromGroup;
 
-var deviceExistsInGroup = function(group_id, device_id) {
+var deviceExistsInGroup = function(device_id, group_id) {
     var self = this;
 
+//	console.log("Looking For " + device_id + " in " + group_id);
     var group = self.getGroup(group_id);
 
     if (isEmpty(group)) return false; //No group? No use executing the rest
 
-    //console.log("Found group: " + JSON.stringify(group,null,4));
+//    console.log("Found group: " + JSON.stringify(group,null,4));
 
     return (group['members'].indexOf(device_id) > -1);
 }
@@ -837,3 +863,8 @@ var hasChanged = function(thing, update) {
 		return false;
 	});
 }
+
+var getGroups = function() {
+	return groups;
+}
+module.exports.getGroups = getGroups;

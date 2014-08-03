@@ -19,9 +19,12 @@ var findDevices = exports.findDevices = function(data_from_wit, roomie_id, stewa
     var self = this;
     var outcome = [];
 
-    for(var attributeName in data_from_wit['outcome']['entities']){
-        console.log("Adding to outcome - " + attributeName+": "+data_from_wit['outcome']['entities'][attributeName]['value']);
-        outcome[attributeName] = data_from_wit['outcome']['entities'][attributeName]['value'];
+	console.log("000000000000000000000");
+	console.log(JSON.stringify(data_from_wit['outcomes'][0]['entities'],null,4));
+
+    for(var attributeName in data_from_wit['outcomes'][0]['entities']){
+        console.log("Adding to outcome - " + attributeName+": "+data_from_wit['outcomes'][0]['entities'][attributeName][0]['value']);
+        outcome[attributeName] = data_from_wit['outcomes'][0]['entities'][attributeName][0]['value'];
     }
 
 	//Is there a location present? If so, try to determine the group by name
@@ -36,7 +39,7 @@ var findDevices = exports.findDevices = function(data_from_wit, roomie_id, stewa
 		console.log("location is empty"); 
 	}
 
-    if (isEmpty(location)) { //No location, either we couldn't find one, or one wasn't provided
+    if (isEmpty(outcome['location'])) { //No location, either we couldn't find one, or one wasn't provided
         //###TODO - Rooms: Upon adding group functionality, track this node's room
         //         and use it here when necessary
 		console.log("Looking up location by roomie. roomie_id=" + roomie_id);

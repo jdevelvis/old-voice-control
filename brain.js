@@ -46,16 +46,17 @@ var think = function(command, roomie_id, callback) {
 		console.log("Thought recieved: " + JSON.stringify(response,null,4));
         if (!err) {
 		    //Make sure there is an outcome
-		    if (response['outcome']) {
+		    if (response['outcomes'][0]) {
         		var outcome = [];
-				var intent_file_name = '/intents/' + response['outcome']['intent'];
+				var intent_file_name = '/intents/' + response['outcomes'][0]['intent'];
 				var intent_path =__dirname + intent_file_name + '.js';
 	
-				console.log("Outcome: " + JSON.stringify(response['outcome'],null,4));
+				console.log("Outcome: " + JSON.stringify(response['outcomes'][0],null,4));
 				console.log("exists? " + intent_path + fs.existsSync(intent_path));
 
 				//Does the intent code exist?
-				if (fs.existsSync(intent_path)) {
+				//###MUST REMOVE response...command_toggle' && from this! Added it to only perform toggle commands
+				if (response['outcomes'][0]['intent']=='command_toggle' && fs.existsSync(intent_path)) {
 			        //Find the intent & parse it
     		   		var intent = require('.' + intent_file_name);
 				       	intent.takeAction(response, roomie_id, steward, function(status) {
@@ -67,7 +68,9 @@ var think = function(command, roomie_id, callback) {
 					//but needs updated before she can take action on it
 					console.log('Warning: Intent recognized, but intent logic module not found');
 				}
-		    }
+		    } else {
+				console.log("Error: No outcome");
+			}
         } else {} //###TODO: Error Handling Needed Here
     });
 }
