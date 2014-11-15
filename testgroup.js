@@ -4,10 +4,10 @@ steward.init(init_callback, null, meta_callback);
 
 function init_callback(data) {
     steward.getGroups(done_callback);
-//    steward.createGroup("Living Room","LivingRoom1",['device/9','device/7'],done_callback);
+//    steward.createGroup("Kitchen","kitchen1",['device/2'],done_callback);
 //    steward.createGroup("Bedroom","Bedroom1",['device/8'],done_callback);
 //    steward.deleteGroup(1, done_callback);
-//	steward.modifyGroup('group/1','Living Room',['device/8','device/9']);
+	steward.modifyGroup('group/1','Living Room',['device/8','device/9','device/5','device/6']);
 //	steward.modifyGroup('group/2','Bedroom',['device/7']);
 //	console.log('done modifying');
 	

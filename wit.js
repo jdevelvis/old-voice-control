@@ -1,6 +1,6 @@
 var https = require('https'),
-    bearer_auth = '7DKBTBCSC7UDTG5T73XOOOU4YOSZC4WI', //the bearer_auth to the EHMA wit
-	version = '20140501';
+    bearer_auth = '7DKBTBCSC7UDTG5T73XOOOU4YOSZC4WI', //the bearer_auth to the EHMA wit instance
+	version = '20140620';
 
 var think = function(data, callback) {
 	data = data.toLowerCase();
@@ -35,7 +35,7 @@ var think = function(data, callback) {
 }
 
 var list_expressions = function(callback) {
-    call_api('corpus','?',callback, 4);
+    call_api('corpus','',callback, 4);
 /*
     var self = this;
     var options = {
@@ -78,7 +78,7 @@ var call_api = function(endpoint, data, callback, tries) {
         path: '/' + endpoint + data, //?q=' + encodeURIComponent(data),
         headers: {
 			'Authorization': 'Bearer ' + bearer_auth,
-			'Accept': 'application/vnd.wit/20140802' //Use API version prior to this date
+			'Accept': 'application/vnd.wit/' + version
 		}
 
     };
@@ -99,13 +99,14 @@ var call_api = function(endpoint, data, callback, tries) {
 //            callback(null,JSON.parse(response));
 //            console.log("success!");
             try { //Try to send the JSON object back
-//                console.log('----\n' + response + '----');
+                console.log('----\n' + response + '----');
                 response = JSON.parse(response);
                
 //                return;
             } catch (e) { //If we got an erroneous response (likely a 404 or 503 error) then try again
+				console.log("Error: " + JSON.stringify(e,null,4));
                 if (tries > 0) {
-                    console.log("wit.js call_api: Trying again");
+                    console.log("Trying again...");
                     setTimeout(call_api, 5000, endpoint, data, callback, tries-1);
                 } else {
                     console.log("wit.js call_api: Unable to contact Wit.ai. Giving Up.");

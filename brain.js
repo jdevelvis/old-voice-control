@@ -1,7 +1,9 @@
 var wit     = require('./wit'),
     steward = require('./steward'),
     fs  = require('fs'),
-	isEmpty = require('underscore').isEmpty;
+	isEmpty = require('underscore').isEmpty,
+	minConfidence = .70,
+	maxConfidence = .90
 ;
 
 var init = function(callback) {
@@ -47,26 +49,42 @@ var think = function(command, roomie_id, callback) {
         if (!err) {
 		    //Make sure there is an outcome
 		    if (response['outcomes'][0]) {
-        		var outcome = [];
+				//Does this intent exist?
+				var intent = null;
 				var intent_file_name = '/intents/' + response['outcomes'][0]['intent'];
 				var intent_path =__dirname + intent_file_name + '.js';
-	
-				console.log("Outcome: " + JSON.stringify(response['outcomes'][0],null,4));
-				console.log("exists? " + intent_path + fs.existsSync(intent_path));
 
-				//Does the intent code exist?
+				console.log("Outcome: " + JSON.stringify(response['outcomes'][0],null,4));
+				console.log("Does the intent exist? " + intent_path + fs.existsSync(intent_path));
+
 				//###MUST REMOVE response...command_toggle' && from this! Added it to only perform toggle commands
 				if (response['outcomes'][0]['intent']=='command_toggle' && fs.existsSync(intent_path)) {
 			        //Find the intent & parse it
-    		   		var intent = require('.' + intent_file_name);
-				       	intent.takeAction(response, roomie_id, steward, function(status) {
-		    			console.log("Status: " + status);
-				    	if (callback) callback(status);
-					});
+   			   		intent = require('.' + intent_file_name);
 				} else {
 					//###TODO: Verbal response noting that EHMA understands the intent, 
 					//but needs updated before she can take action on it
 					console.log('Warning: Intent recognized, but intent logic module not found');
+				}
+
+				//Check confidence thresholds 
+				//### Does this need updated for multiple outcomes?
+				var confidence = response['outcomes'][0]['confidence'];
+				if (confidence < minConfidence) {
+					console.log('Not confident in this command, tell Roomie to play deny sound.');
+					steward.perform('7001',roomie_id,'play_sound','deny');
+
+				} else if (confidence > minConfidence && confidence < maxConfidence)  {
+					console.log('Fairly confident, but verifying to be sure. Tell Roomie to confirm.');
+					steward.perform('8001',roomie_id,'speak','Did you mean');
+
+				} else { // We're confident. Let's do this
+	
+			       	intent.takeAction(response, roomie_id, steward, function(status) {
+	    				console.log("Status: " + status);
+			    		if (callback) callback(status);
+					});
+
 				}
 		    } else {
 				console.log("Error: No outcome");

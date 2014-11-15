@@ -21,13 +21,15 @@ var takeAction = function(data_from_wit, roomie_id, steward, callback) {
     //Find the devices if possible. If it's not possible, can we tell why?
     devices = findDevices(data_from_wit, roomie_id, steward, ["on","off"]);
 
+	console.log("Devices: " + JSON.stringify(devices,null,4));
+
 	for (var i in devices) {
-//		var level = 0;
-//		if (on_off == 'on') level = 99;
+		var light_level = 0;
+		if (on_off == 'on') light_level = 99;
 
-//		var parameter = JSON.stringify({level: level});
+		var cmd_parameter = JSON.stringify({level: light_level});
 
-		commands.push({device_id:devices[i].id,action:on_off});//, parameter:parameter});
+		commands.push({device_id:devices[i].id,action:on_off, parameter:cmd_parameter});
 	}
 
     console.log("command_toggle Decision --- Issuing Commands: " + JSON.stringify(commands,null,4));
@@ -37,7 +39,7 @@ var takeAction = function(data_from_wit, roomie_id, steward, callback) {
 
 	var request_id = 1983;
 	for (var i in commands) {
-		steward.perform(request_id,commands[i]['device_id'],commands[i]['action'],commands[i]['level']);
+		steward.perform(request_id,commands[i]['device_id'],commands[i]['action'],commands[i]['parameter']);
 		request_id++;
 	}
 

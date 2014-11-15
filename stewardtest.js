@@ -3,10 +3,11 @@ steward = require('./steward');
 steward.init(init_callback);
 
 function init_callback(data) {
-//	console.log("addDeviceToGroup: " + steward.addDeviceToGroup('group/1','device/6'));
+//steward.createGroup('Coseye','coseye',['device/11'], function() {console.log("coseye created!")});
+//	console.log("addDeviceToGroup: " + steward.addDeviceToGroup('group/3','device/9'));
 //    console.log("getGroup basement: " + JSON.stringify(steward.getGroup(null,'basement',null),null,4));
-
-//	console.log("removeDeviceFromGroup: " + steward.removeDeviceFromGroup('group/1','device/2'));
+steward.modifyGroup('group/1','Living Room',['device/8']);
+//	console.log("removeDeviceFromGroup: " + steward.removeDeviceFromGroup('group/1','device/9'));
 //    console.log("getGroup basement: " + JSON.stringify(steward.getGroup(null,'basement',null),null,4));
 	
 

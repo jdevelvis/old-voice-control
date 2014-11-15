@@ -137,7 +137,25 @@ var manage = function(requestID, device_path, action, parameter, callback) {
                         requestID : requestID,
                         perform   : action
             }
-		if (!isEmpty(parameter)) json['parameter'] = JSON.stringify(parameter);
+		if (!isEmpty(parameter)) {
+		    try {
+	        	var o = JSON.parse(parameter);
+
+	        	// Handle non-exception-throwing cases:
+    		    // Neither JSON.parse(false) or JSON.parse(1234) throw errors, hence the type-checking,
+    	    	// but... JSON.parse(null) returns 'null', and typeof null === "object", 
+		        // so we must check for that, too.
+    	    	if (o && typeof o === "object" && o !== null) {
+        		    json['parameter'] = '';
+		        } else {
+					json['parameter'] = JSON.stringify(o);
+				}
+	    	}
+		    catch (e) {
+				//If we're here, parameter isn't JSON. No problem.
+				json['parameter'] = parameter;
+			}
+		}
 
 		json = JSON.stringify(json);
         console.log(json);
@@ -211,7 +229,7 @@ var actors = function(callback) {
         var json_data = JSON.parse(event.data);
         self.actors = json_data['result']['actors'];
         //console.log(JSON.stringify(self.actors,null,4));
-		callback();
+		if (callback) callback();
 		ws.close();
 	};
 
@@ -222,9 +240,14 @@ var actors = function(callback) {
 	ws.onerror = function(event) {
 		console.log("Actors Socket error: " + util.inspect(event, {depth: null}));
 		try { 
-		        ws.close(); 
+		    ws.close(); 
 			console.log("Closed websocket: actors.");
-		} catch (ex) {}
+
+			console.log("Attempting to reconnect in 2 seconds");
+			setTimeout(function() { actors(callback); }, 2000);
+		} catch (ex) {
+			console.log("Unable to reconnect. Please re-start the script");
+		}
 	};
 }
 module.exports.actors = actors;
@@ -714,9 +737,9 @@ var deviceHasAction = function (device_id, action) {
 	var self = this;
 
 	var whatami = self.getWhatAmI(device_id);
-//	console.log("whatami: " + whatami + " -- device_id " + device_id);
+	console.log("whatami: " + whatami + " -- device_id " + device_id);
     if (!isEmpty(whatami)) {
-//		console.log('Inside whatami');
+		console.log('Inside whatami: ' + JSON.stringify(self.actors[whatami],null,4));
 		if (!isEmpty(self.actors[whatami]['perform'])) {
 //			console.log('Has perform section: ' + (self.actors[whatami]['perform'].indexOf(action) >= 0));
 	        return (self.actors[whatami]['perform'].indexOf(action) >= 0)

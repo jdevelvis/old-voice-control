@@ -35,6 +35,7 @@ var findDevices = exports.findDevices = function(data_from_wit, roomie_id, stewa
 		if (group != false) {
 			location = group.id;
 		}
+		console.log(JSON.stringify(group,null,4));
     } else { 
 		console.log("location is empty"); 
 	}
